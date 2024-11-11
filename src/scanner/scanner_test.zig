@@ -1,11 +1,8 @@
 const std = @import("std");
 const Scanner = @import("../../src/scanner/scanner.zig");
-const Tokens = @import("../../src/scanner/token.zig");
-const Token = Tokens.Token;
-const LiteralValue = Tokens.LiteralValue;
-const TokenType = Tokens.TokenType;
+const Token = @import("../../src/scanner/token.zig");
 
-fn testScanToken(allocator: std.mem.Allocator, source: []const u8, expected_type: TokenType, expected_lexeme: []const u8) !void {
+fn testScanToken(allocator: std.mem.Allocator, source: []const u8, expected_type: Token.Type, expected_lexeme: []const u8) !void {
     var tokens: std.ArrayList(Token) = try Scanner.scanTokens(allocator, source);
     defer tokens.deinit();
     const token: Token = tokens.items[0];
@@ -33,7 +30,7 @@ test "skip comments" {
     const token = tokens.items[0];
 
     try std.testing.expectEqual(
-        TokenType.Eof,
+        Token.Type.eof,
         token.token_type,
     );
     try std.testing.expectEqual(3, token.line);
@@ -77,36 +74,36 @@ test "single-character and symbol tokens" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, ".", TokenType.Dot, ".");
-    try testScanToken(allocator, ":", TokenType.Colon, ":");
-    try testScanToken(allocator, ";", TokenType.SemiColon, ";");
-    try testScanToken(allocator, ",", TokenType.Coma, ",");
-    try testScanToken(allocator, "(", TokenType.LeftParen, "(");
-    try testScanToken(allocator, ")", TokenType.RightParen, ")");
-    try testScanToken(allocator, "{", TokenType.LeftCBrace, "{");
-    try testScanToken(allocator, "}", TokenType.RightCBrace, "}");
-    try testScanToken(allocator, "[", TokenType.LeftBracket, "[");
-    try testScanToken(allocator, "]", TokenType.RightBracket, "]");
+    try testScanToken(allocator, ".", Token.Type.dot, ".");
+    try testScanToken(allocator, ":", Token.Type.colon, ":");
+    try testScanToken(allocator, ";", Token.Type.semicolon, ";");
+    try testScanToken(allocator, ",", Token.Type.comma, ",");
+    try testScanToken(allocator, "(", Token.Type.left_paren, "(");
+    try testScanToken(allocator, ")", Token.Type.right_paren, ")");
+    try testScanToken(allocator, "{", Token.Type.left_curly_brace, "{");
+    try testScanToken(allocator, "}", Token.Type.right_curly_brace, "}");
+    try testScanToken(allocator, "[", Token.Type.left_bracket, "[");
+    try testScanToken(allocator, "]", Token.Type.right_bracket, "]");
 }
 
 test "arithmetic operators" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "+", TokenType.Additive, "+");
-    try testScanToken(allocator, "-", TokenType.Additive, "-");
-    try testScanToken(allocator, "*", TokenType.Multiplicative, "*");
-    try testScanToken(allocator, "/", TokenType.Multiplicative, "/");
+    try testScanToken(allocator, "+", Token.Type.additive, "+");
+    try testScanToken(allocator, "-", Token.Type.additive, "-");
+    try testScanToken(allocator, "*", Token.Type.multiplicative, "*");
+    try testScanToken(allocator, "/", Token.Type.multiplicative, "/");
 }
 
 test "equality and assignment operators" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "!", TokenType.Not, "!");
-    try testScanToken(allocator, "==", TokenType.Equal, "==");
-    try testScanToken(allocator, "!=", TokenType.NotEqual, "!=");
-    try testScanToken(allocator, "=", TokenType.Assign, "=");
+    try testScanToken(allocator, "!", Token.Type.not, "!");
+    try testScanToken(allocator, "==", Token.Type.equal, "==");
+    try testScanToken(allocator, "!=", Token.Type.not_equal, "!=");
+    try testScanToken(allocator, "=", Token.Type.assign, "=");
 }
 
 test "keywords and identifiers" {
@@ -116,45 +113,45 @@ test "keywords and identifiers" {
     try testScanToken(
         allocator,
         "let",
-        TokenType.Let,
+        Token.Type.let,
         "let",
     );
-    try testScanToken(allocator, "function", TokenType.Function, "function");
-    try testScanToken(allocator, "if", TokenType.If, "if");
-    try testScanToken(allocator, "else", TokenType.Else, "else");
-    try testScanToken(allocator, "while", TokenType.While, "while");
-    try testScanToken(allocator, "return", TokenType.Return, "return");
-    try testScanToken(allocator, "break", TokenType.Break, "break");
-    try testScanToken(allocator, "continue", TokenType.Continue, "continue");
-    try testScanToken(allocator, "foo", TokenType.Identifier, "foo");
+    try testScanToken(allocator, "function", Token.Type.function, "function");
+    try testScanToken(allocator, "if", Token.Type.if_, "if");
+    try testScanToken(allocator, "else", Token.Type.else_, "else");
+    try testScanToken(allocator, "while", Token.Type.while_, "while");
+    try testScanToken(allocator, "return", Token.Type.return_, "return");
+    try testScanToken(allocator, "break", Token.Type.break_, "break");
+    try testScanToken(allocator, "continue", Token.Type.continue_, "continue");
+    try testScanToken(allocator, "foo", Token.Type.identifier, "foo");
 }
 
 test "type keywords" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "number", TokenType.NumberType, "number");
-    try testScanToken(allocator, "string", TokenType.StringType, "string");
-    try testScanToken(allocator, "boolean", TokenType.BooleanType, "boolean");
-    try testScanToken(allocator, "void", TokenType.VoidType, "void");
+    try testScanToken(allocator, "number", Token.Type.number_type, "number");
+    try testScanToken(allocator, "string", Token.Type.string_type, "string");
+    try testScanToken(allocator, "boolean", Token.Type.boolean_type, "boolean");
+    try testScanToken(allocator, "void", Token.Type.void_type, "void");
 }
 
 test "literal values" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "true", TokenType.BooleanLiteral, "true");
-    try testScanToken(allocator, "false", TokenType.BooleanLiteral, "false");
-    try testScanToken(allocator, "null", TokenType.NullLiteral, "null");
-    try testScanToken(allocator, "undefined", TokenType.UndefinedLiteral, "undefined");
+    try testScanToken(allocator, "true", Token.Type.boolean_literal, "true");
+    try testScanToken(allocator, "false", Token.Type.boolean_literal, "false");
+    try testScanToken(allocator, "null", Token.Type.null_literal, "null");
+    try testScanToken(allocator, "undefined", Token.Type.undefined_literal, "undefined");
 }
 
 test "identifiers starting with keywords" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "letVar", TokenType.Identifier, "letVar");
-    try testScanToken(allocator, "whileVar", TokenType.Identifier, "whileVar");
+    try testScanToken(allocator, "letVar", Token.Type.identifier, "letVar");
+    try testScanToken(allocator, "whileVar", Token.Type.identifier, "whileVar");
 }
 
 test "string literal" {
@@ -165,7 +162,7 @@ test "string literal" {
     const tokens = try Scanner.scanTokens(allocator, "\"Hello world\"");
     const token = tokens.items[0];
 
-    try std.testing.expectEqual(token.token_type, TokenType.StringLiteral);
+    try std.testing.expectEqual(token.token_type, Token.Type.string_literal);
     try std.testing.expect(std.mem.eql(u8, token.lexeme, "Hello world"));
     try std.testing.expect(std.mem.eql(u8, token.literal.?.string, "Hello world"));
 }
@@ -178,7 +175,7 @@ test "number literal" {
     const tokens = try Scanner.scanTokens(allocator, "123");
     const token = tokens.items[0];
 
-    try std.testing.expectEqual(token.token_type, TokenType.NumberLiteral);
+    try std.testing.expectEqual(token.token_type, Token.Type.number_literal);
     try std.testing.expect(std.mem.eql(u8, token.lexeme, "123"));
     try std.testing.expectEqual(token.literal.?.number, 123);
 }
@@ -190,7 +187,7 @@ test "boolean literals" {
 
     const tokens = try Scanner.scanTokens(allocator, "true false");
 
-    try std.testing.expectEqual(tokens.items[0].token_type, TokenType.BooleanLiteral);
+    try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
     try std.testing.expect(std.mem.eql(u8, tokens.items[0].lexeme, "true"));
     try std.testing.expect(tokens.items[0].literal.?.boolean);
 }

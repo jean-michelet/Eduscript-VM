@@ -1,7 +1,5 @@
 const std = @import("std");
 const scanner = @import("./scanner/scanner.zig");
-const tokens = @import("./scanner/token.zig");
-const TokenType = tokens.TokenType;
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -12,7 +10,7 @@ pub fn main() !void {
     const tokenList = try scanner.scanTokens(allocator, source);
 
     for (tokenList.items) |token| {
-        if (token.token_type == TokenType.Eof) break;
+        if (token.token_type == .eof) break;
 
         std.debug.print("Token: \"{s}\" at line {d}, pos {d}\n", .{
             token.lexeme,

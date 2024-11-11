@@ -1,9 +1,5 @@
 const std = @import("std");
-
-const Tokens = @import("./token.zig");
-const Token = Tokens.Token;
-const LiteralValue = Tokens.LiteralValue;
-const TokenType = Tokens.TokenType;
+const Token = @import("./token.zig");
 
 pub const Errors = error{ UnexpectedToken, UnterminatedString } || error{ OutOfMemory, InvalidCharacter };
 
@@ -27,7 +23,6 @@ const Tracker = struct {
 
 pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.ArrayList(Token) {
     var tokens = std.ArrayList(Token).init(allocator);
-
     var tracker = Tracker{};
 
     while (!isEOF(&tracker, source)) {
@@ -36,47 +31,43 @@ pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.A
 
         switch (c) {
             // Handle single-character tokens
-            '.' => try addToken(&tracker, &tokens, TokenType.Dot, ".", null),
-            ':' => try addToken(&tracker, &tokens, TokenType.Colon, ":", null),
-            ';' => try addToken(&tracker, &tokens, TokenType.SemiColon, ";", null),
-            ',' => try addToken(&tracker, &tokens, TokenType.Coma, ",", null),
-            '(' => try addToken(&tracker, &tokens, TokenType.LeftParen, "(", null),
-            ')' => try addToken(&tracker, &tokens, TokenType.RightParen, ")", null),
-            '{' => try addToken(&tracker, &tokens, TokenType.LeftCBrace, "{", null),
-            '}' => try addToken(&tracker, &tokens, TokenType.RightCBrace, "}", null),
-            '[' => try addToken(&tracker, &tokens, TokenType.LeftBracket, "[", null),
-            ']' => try addToken(&tracker, &tokens, TokenType.RightBracket, "]", null),
-            '+',
-            => try addToken(&tracker, &tokens, TokenType.Additive, "+", null),
-            '-',
-            => try addToken(&tracker, &tokens, TokenType.Additive, "-", null),
-            '*' => try addToken(&tracker, &tokens, TokenType.Multiplicative, "*", null),
+            '.' => try addToken(&tracker, &tokens, Token.Type.dot, ".", null),
+            ':' => try addToken(&tracker, &tokens, Token.Type.colon, ":", null),
+            ';' => try addToken(&tracker, &tokens, Token.Type.semicolon, ";", null),
+            ',' => try addToken(&tracker, &tokens, Token.Type.comma, ",", null),
+            '(' => try addToken(&tracker, &tokens, Token.Type.left_paren, "(", null),
+            ')' => try addToken(&tracker, &tokens, Token.Type.right_paren, ")", null),
+            '{' => try addToken(&tracker, &tokens, Token.Type.left_curly_brace, "{", null),
+            '}' => try addToken(&tracker, &tokens, Token.Type.right_curly_brace, "}", null),
+            '[' => try addToken(&tracker, &tokens, Token.Type.left_bracket, "[", null),
+            ']' => try addToken(&tracker, &tokens, Token.Type.right_bracket, "]", null),
+            '+' => try addToken(&tracker, &tokens, Token.Type.additive, "+", null),
+            '-' => try addToken(&tracker, &tokens, Token.Type.additive, "-", null),
+            '*' => try addToken(&tracker, &tokens, Token.Type.multiplicative, "*", null),
             '/' => {
                 if (peekNext(&tracker, source) == '/') {
                     tracker.advanceTo(2); // Skip the '//' characters
                     while (peek(&tracker, source) != '\n' and !isEOF(&tracker, source)) {
                         tracker.advance();
                     }
-
                     tracker.startPos = tracker.pos;
                 } else {
-                    // Is a diviser operator
-                    try addToken(&tracker, &tokens, TokenType.Multiplicative, "/", null);
+                    try addToken(&tracker, &tokens, Token.Type.multiplicative, "/", null);
                 }
             },
 
             '!' => {
                 if (peekNext(&tracker, source) == '=') {
-                    try addToken(&tracker, &tokens, TokenType.NotEqual, "!=", null);
+                    try addToken(&tracker, &tokens, Token.Type.not_equal, "!=", null);
                 } else {
-                    try addToken(&tracker, &tokens, TokenType.Not, "!", null);
+                    try addToken(&tracker, &tokens, Token.Type.not, "!", null);
                 }
             },
             '=' => {
                 if (peekNext(&tracker, source) == '=') {
-                    try addToken(&tracker, &tokens, TokenType.Equal, "==", null);
+                    try addToken(&tracker, &tokens, Token.Type.equal, "==", null);
                 } else {
-                    try addToken(&tracker, &tokens, TokenType.Assign, "=", null);
+                    try addToken(&tracker, &tokens, Token.Type.assign, "=", null);
                 }
             },
             // Handle whitespace and newlines
@@ -94,7 +85,7 @@ pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.A
     }
 
     try tokens.append(Token{
-        .token_type = TokenType.Eof,
+        .token_type = Token.Type.eof,
         .lexeme = "",
         .literal = null,
         .line = tracker.line,
@@ -104,7 +95,7 @@ pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.A
     return tokens;
 }
 
-fn addToken(tracker: *Tracker, tokens: *std.ArrayList(Token), token_type: TokenType, lexeme: []const u8, literal: ?LiteralValue) Errors!void {
+fn addToken(tracker: *Tracker, tokens: *std.ArrayList(Token), token_type: Token.Type, lexeme: []const u8, literal: ?Token.LiteralValue) Errors!void {
     try tokens.append(Token{
         .token_type = token_type,
         .lexeme = lexeme,
@@ -124,7 +115,7 @@ fn scanNumber(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const 
     const lexeme = source[start..tracker.pos];
     const number = try std.fmt.parseFloat(f64, lexeme);
 
-    try addToken(tracker, tokens, TokenType.NumberLiteral, lexeme, LiteralValue{ .number = number });
+    try addToken(tracker, tokens, Token.Type.number_literal, lexeme, Token.LiteralValue{ .number = number });
 }
 
 fn scanIdentifierOrKeyword(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const u8) Errors!void {
@@ -134,44 +125,44 @@ fn scanIdentifierOrKeyword(tracker: *Tracker, tokens: *std.ArrayList(Token), sou
     }
 
     const lexeme = source[start..tracker.pos];
-    var token_type = TokenType.Identifier;
+    var token_type = Token.Type.identifier;
 
     if (std.mem.eql(u8, lexeme, "let")) {
-        token_type = TokenType.Let;
+        token_type = Token.Type.let;
     } else if (std.mem.eql(u8, lexeme, "function")) {
-        token_type = TokenType.Function;
+        token_type = Token.Type.function;
     } else if (std.mem.eql(u8, lexeme, "if")) {
-        token_type = TokenType.If;
+        token_type = Token.Type.if_;
     } else if (std.mem.eql(u8, lexeme, "else")) {
-        token_type = TokenType.Else;
+        token_type = Token.Type.else_;
     } else if (std.mem.eql(u8, lexeme, "while")) {
-        token_type = TokenType.While;
+        token_type = Token.Type.while_;
     } else if (std.mem.eql(u8, lexeme, "return")) {
-        token_type = TokenType.Return;
+        token_type = Token.Type.return_;
     } else if (std.mem.eql(u8, lexeme, "break")) {
-        token_type = TokenType.Break;
+        token_type = Token.Type.break_;
     } else if (std.mem.eql(u8, lexeme, "continue")) {
-        token_type = TokenType.Continue;
+        token_type = Token.Type.continue_;
     } else if (std.mem.eql(u8, lexeme, "number")) {
-        token_type = TokenType.NumberType;
+        token_type = Token.Type.number_type;
     } else if (std.mem.eql(u8, lexeme, "string")) {
-        token_type = TokenType.StringType;
+        token_type = Token.Type.string_type;
     } else if (std.mem.eql(u8, lexeme, "boolean")) {
-        token_type = TokenType.BooleanType;
+        token_type = Token.Type.boolean_type;
     } else if (std.mem.eql(u8, lexeme, "void")) {
-        token_type = TokenType.VoidType;
+        token_type = Token.Type.void_type;
     } else if (std.mem.eql(u8, lexeme, "true") or std.mem.eql(u8, lexeme, "false")) {
-        token_type = TokenType.BooleanLiteral;
+        token_type = Token.Type.boolean_literal;
     } else if (std.mem.eql(u8, lexeme, "null")) {
-        token_type = TokenType.NullLiteral;
+        token_type = Token.Type.null_literal;
     } else if (std.mem.eql(u8, lexeme, "undefined")) {
-        token_type = TokenType.UndefinedLiteral;
+        token_type = Token.Type.undefined_literal;
     }
 
-    const literal: ?LiteralValue = switch (token_type) {
-        .BooleanLiteral => LiteralValue{ .boolean = std.mem.eql(u8, lexeme, "true") },
-        .NullLiteral => LiteralValue{ .null = {} },
-        .UndefinedLiteral => LiteralValue{ .undefined = {} },
+    const literal: ?Token.LiteralValue = switch (token_type) {
+        .boolean_literal => Token.LiteralValue{ .boolean = std.mem.eql(u8, lexeme, "true") },
+        .null_literal => Token.LiteralValue{ .null = {} },
+        .undefined_literal => Token.LiteralValue{ .undefined = {} },
         else => null,
     };
 
@@ -199,7 +190,7 @@ fn scanString(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const 
     const lexemeCopy = try allocator.dupe(u8, lexeme);
     tracker.advance(); // Skip the closing quote
 
-    try addToken(tracker, tokens, TokenType.StringLiteral, lexeme, LiteralValue{ .string = lexemeCopy });
+    try addToken(tracker, tokens, Token.Type.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });
 }
 
 fn isEOF(tracker: *Tracker, source: []const u8) bool {
