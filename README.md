@@ -1,3 +1,3 @@
-# Eduscript-Zig
+# Eduscript-VM
 
-Eduscript-Zig is a virtual machine (VM) bytecode interpreter for **EduScript**, an educational programming language, written in [Zig](https://ziglang.org/). The project is actively under development.
+Eduscript-VM is a virtual machine (VM) bytecode interpreter for **EduScript**, an educational programming language, written in [Zig](https://ziglang.org/). The project is actively under development.
