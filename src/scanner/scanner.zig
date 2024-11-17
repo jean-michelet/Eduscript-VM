@@ -31,19 +31,19 @@ pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.A
 
         switch (c) {
             // Handle single-character tokens
-            '.' => try addToken(&tracker, &tokens, Token.Type.dot, ".", null),
-            ':' => try addToken(&tracker, &tokens, Token.Type.colon, ":", null),
-            ';' => try addToken(&tracker, &tokens, Token.Type.semicolon, ";", null),
-            ',' => try addToken(&tracker, &tokens, Token.Type.comma, ",", null),
-            '(' => try addToken(&tracker, &tokens, Token.Type.left_paren, "(", null),
-            ')' => try addToken(&tracker, &tokens, Token.Type.right_paren, ")", null),
-            '{' => try addToken(&tracker, &tokens, Token.Type.left_curly_brace, "{", null),
-            '}' => try addToken(&tracker, &tokens, Token.Type.right_curly_brace, "}", null),
-            '[' => try addToken(&tracker, &tokens, Token.Type.left_bracket, "[", null),
-            ']' => try addToken(&tracker, &tokens, Token.Type.right_bracket, "]", null),
-            '+' => try addToken(&tracker, &tokens, Token.Type.additive, "+", null),
-            '-' => try addToken(&tracker, &tokens, Token.Type.additive, "-", null),
-            '*' => try addToken(&tracker, &tokens, Token.Type.multiplicative, "*", null),
+            '.' => try addNullToken(&tracker, &tokens, Token.Type.dot, "."),
+            ':' => try addNullToken(&tracker, &tokens, Token.Type.colon, ":"),
+            ';' => try addNullToken(&tracker, &tokens, Token.Type.semicolon, ";"),
+            ',' => try addNullToken(&tracker, &tokens, Token.Type.comma, ","),
+            '(' => try addNullToken(&tracker, &tokens, Token.Type.left_paren, "("),
+            ')' => try addNullToken(&tracker, &tokens, Token.Type.right_paren, ")"),
+            '{' => try addNullToken(&tracker, &tokens, Token.Type.left_curly_brace, "{"),
+            '}' => try addNullToken(&tracker, &tokens, Token.Type.right_curly_brace, "}"),
+            '[' => try addNullToken(&tracker, &tokens, Token.Type.left_bracket, "["),
+            ']' => try addNullToken(&tracker, &tokens, Token.Type.right_bracket, "]"),
+            '+' => try addNullToken(&tracker, &tokens, Token.Type.plus, "+"),
+            '-' => try addNullToken(&tracker, &tokens, Token.Type.minus, "-"),
+            '*' => try addNullToken(&tracker, &tokens, Token.Type.star, "*"),
             '/' => {
                 if (peekNext(&tracker, source) == '/') {
                     tracker.advanceTo(2); // Skip the '//' characters
@@ -52,22 +52,24 @@ pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.A
                     }
                     tracker.startPos = tracker.pos;
                 } else {
-                    try addToken(&tracker, &tokens, Token.Type.multiplicative, "/", null);
+                    try addNullToken(&tracker, &tokens, Token.Type.slash, "/");
                 }
             },
 
             '!' => {
                 if (peekNext(&tracker, source) == '=') {
-                    try addToken(&tracker, &tokens, Token.Type.not_equal, "!=", null);
+                    tracker.advance();
+                    try addNullToken(&tracker, &tokens, Token.Type.not_equal, "!=");
                 } else {
-                    try addToken(&tracker, &tokens, Token.Type.not, "!", null);
+                    return Errors.UnexpectedToken;
                 }
             },
             '=' => {
                 if (peekNext(&tracker, source) == '=') {
-                    try addToken(&tracker, &tokens, Token.Type.equal, "==", null);
+                    tracker.advance();
+                    try addNullToken(&tracker, &tokens, Token.Type.equal, "==");
                 } else {
-                    try addToken(&tracker, &tokens, Token.Type.assign, "=", null);
+                    try addNullToken(&tracker, &tokens, Token.Type.assign, "=");
                 }
             },
             // Handle whitespace and newlines
@@ -103,12 +105,16 @@ fn addToken(tracker: *Tracker, tokens: *std.ArrayList(Token), token_type: Token.
         .line = tracker.line,
         .pos = tracker.startPos,
     });
+}
+
+fn addNullToken(tracker: *Tracker, tokens: *std.ArrayList(Token), token_type: Token.Type, lexeme: []const u8) Errors!void {
+    try addToken(tracker, tokens, token_type, lexeme, null);
     tracker.advance();
 }
 
 fn scanNumber(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const u8) Errors!void {
     const start = tracker.pos;
-    while (tracker.pos < source.len and std.ascii.isDigit(source[tracker.pos])) {
+    while (!isEOF(tracker, source) and std.ascii.isDigit(source[tracker.pos])) {
         tracker.advance();
     }
 
@@ -161,8 +167,8 @@ fn scanIdentifierOrKeyword(tracker: *Tracker, tokens: *std.ArrayList(Token), sou
 
     const literal: ?Token.LiteralValue = switch (token_type) {
         .boolean_literal => Token.LiteralValue{ .boolean = std.mem.eql(u8, lexeme, "true") },
-        .null_literal => Token.LiteralValue{ .null = {} },
-        .undefined_literal => Token.LiteralValue{ .undefined = {} },
+        .null_literal => Token.LiteralValue{ .nullVal = {} },
+        .undefined_literal => Token.LiteralValue{ .undefinedVal = {} },
         else => null,
     };
 
@@ -173,7 +179,7 @@ fn scanString(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const 
     tracker.advance(); // Skip the opening quote
     const start = tracker.pos;
 
-    while (tracker.pos < source.len and source[tracker.pos] != '"') {
+    while (!isEOF(tracker, source) and source[tracker.pos] != '"') {
         if (source[tracker.pos] == '\n') {
             tracker.line += 1;
             tracker.pos = 0;

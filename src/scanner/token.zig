@@ -11,8 +11,8 @@ pub const LiteralValue = union(enum) {
     number: f64,
     boolean: bool,
     // `void` represents `null` & `undefined`
-    null: void,
-    undefined: void,
+    nullVal: void,
+    undefinedVal: void,
 };
 
 pub const Type = enum {
@@ -29,23 +29,24 @@ pub const Type = enum {
     right_bracket,
 
     // arithmetic operators
-    additive,
-    multiplicative,
+    plus,
+    minus,
+    star,
+    slash,
 
     // equality operators
-    not,
     equal,
     not_equal,
 
     // relational operators
-    less_than,
-    greater_than,
-    less_than_or_equal,
-    greater_than_or_equal,
+    // less_than,
+    // greater_than,
+    // less_than_or_equal,
+    // greater_than_or_equal,
 
     // logical operators
-    and_,
-    or_,
+    // and_,
+    // or_,
 
     // assignment operators
     assign,

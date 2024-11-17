@@ -1,6 +1,6 @@
 const std = @import("std");
-const Scanner = @import("../../src/scanner/scanner.zig");
-const Token = @import("../../src/scanner/token.zig");
+const Scanner = @import("scanner.zig");
+const Token = @import("token.zig");
 
 fn testScanToken(allocator: std.mem.Allocator, source: []const u8, expected_type: Token.Type, expected_lexeme: []const u8) !void {
     var tokens: std.ArrayList(Token) = try Scanner.scanTokens(allocator, source);
@@ -90,17 +90,16 @@ test "arithmetic operators" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "+", Token.Type.additive, "+");
-    try testScanToken(allocator, "-", Token.Type.additive, "-");
-    try testScanToken(allocator, "*", Token.Type.multiplicative, "*");
-    try testScanToken(allocator, "/", Token.Type.multiplicative, "/");
+    try testScanToken(allocator, "+", Token.Type.plus, "+");
+    try testScanToken(allocator, "-", Token.Type.minus, "-");
+    try testScanToken(allocator, "*", Token.Type.star, "*");
+    try testScanToken(allocator, "/", Token.Type.slash, "/");
 }
 
 test "equality and assignment operators" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    try testScanToken(allocator, "!", Token.Type.not, "!");
     try testScanToken(allocator, "==", Token.Type.equal, "==");
     try testScanToken(allocator, "!=", Token.Type.not_equal, "!=");
     try testScanToken(allocator, "=", Token.Type.assign, "=");
@@ -190,4 +189,16 @@ test "boolean literals" {
     try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
     try std.testing.expect(std.mem.eql(u8, tokens.items[0].lexeme, "true"));
     try std.testing.expect(tokens.items[0].literal.?.boolean);
+}
+
+test "scan symbols and literals" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const tokens = try Scanner.scanTokens(allocator, "true+1;");
+    try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
+    try std.testing.expectEqual(tokens.items[1].token_type, Token.Type.plus);
+    try std.testing.expectEqual(tokens.items[2].token_type, Token.Type.number_literal);
+    try std.testing.expectEqual(tokens.items[3].token_type, Token.Type.semicolon);
 }
