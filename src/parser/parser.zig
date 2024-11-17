@@ -1,6 +1,6 @@
 const std = @import("std");
 const Token = @import("../scanner/token.zig");
-const scanner = @import("../scanner/scanner.zig");
+const Scanner = @import("../scanner/scanner.zig");
 const Node = @import("node.zig");
 
 tokens: []const Token,
@@ -18,7 +18,9 @@ pub fn parse(self: *@This(), allocator: std.mem.Allocator, source: []const u8) !
     defer arena.deinit();
     const scannerAllocator = arena.allocator();
 
-    const tokenList = try scanner.scanTokens(scannerAllocator, source);
+    var scanner = Scanner.init(scannerAllocator, source);
+
+    const tokenList = try scanner.scanTokens();
     self.tokens = tokenList.items;
     var program = Node.Program{
         .statements = std.ArrayList(Node.Stmt).init(allocator),

@@ -1,5 +1,5 @@
 const std = @import("std");
-const scanner = @import("scanner/scanner.zig");
+const Scanner = @import("scanner/scanner.zig");
 const Parser = @import("parser/parser.zig").Parser;
 
 pub fn main() !void {
@@ -8,7 +8,9 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     const source = "let a = \"hello\";";
-    const tokenList = try scanner.scanTokens(allocator, source);
+
+    var scanner = Scanner.init(allocator, source);
+    const tokenList = try scanner.scanTokens();
 
     for (tokenList.items) |token| {
         std.debug.print("Token: \"{s}\" at line {d}, pos {d}\n", .{

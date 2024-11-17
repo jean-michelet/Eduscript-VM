@@ -3,134 +3,133 @@ const Token = @import("./token.zig");
 
 pub const Errors = error{ UnexpectedToken, UnterminatedString } || error{ OutOfMemory, InvalidCharacter };
 
-const Tracker = struct {
-    line: usize = 1,
-    startPos: usize = 0,
-    pos: usize = 0,
-    fn advance(self: *Tracker) void {
-        self.advanceTo(1);
-    }
+allocator: std.mem.Allocator,
+source: []const u8,
+tokens: std.ArrayList(Token),
+line: usize,
+startPos: usize,
+pos: usize,
 
-    fn advanceTo(self: *Tracker, to: usize) void {
-        self.pos += to;
-    }
+pub fn init(allocator: std.mem.Allocator, source: []const u8) @This() {
+    return @This(){
+        .allocator = allocator,
+        .source = source,
+        .tokens = std.ArrayList(Token).init(allocator),
+        .line = 1,
+        .startPos = 0,
+        .pos = 0,
+    };
+}
 
-    fn advanceLine(self: *Tracker) void {
-        self.line += 1;
-        self.pos += 1;
-    }
-};
+pub fn scanTokens(self: *@This()) Errors!std.ArrayList(Token) {
+    self.tokens.clearAndFree();
 
-pub fn scanTokens(allocator: std.mem.Allocator, source: []const u8) Errors!std.ArrayList(Token) {
-    var tokens = std.ArrayList(Token).init(allocator);
-    var tracker = Tracker{};
-
-    while (!isEOF(&tracker, source)) {
-        tracker.startPos = tracker.pos;
-        const c: u8 = source[tracker.pos];
+    while (!self.isEOF()) {
+        self.startPos = self.pos;
+        const c: u8 = self.source[self.pos];
 
         switch (c) {
             // Handle single-character tokens
-            '.' => try addNullToken(&tracker, &tokens, Token.Type.dot, "."),
-            ':' => try addNullToken(&tracker, &tokens, Token.Type.colon, ":"),
-            ';' => try addNullToken(&tracker, &tokens, Token.Type.semicolon, ";"),
-            ',' => try addNullToken(&tracker, &tokens, Token.Type.comma, ","),
-            '(' => try addNullToken(&tracker, &tokens, Token.Type.left_paren, "("),
-            ')' => try addNullToken(&tracker, &tokens, Token.Type.right_paren, ")"),
-            '{' => try addNullToken(&tracker, &tokens, Token.Type.left_curly_brace, "{"),
-            '}' => try addNullToken(&tracker, &tokens, Token.Type.right_curly_brace, "}"),
-            '[' => try addNullToken(&tracker, &tokens, Token.Type.left_bracket, "["),
-            ']' => try addNullToken(&tracker, &tokens, Token.Type.right_bracket, "]"),
-            '+' => try addNullToken(&tracker, &tokens, Token.Type.plus, "+"),
-            '-' => try addNullToken(&tracker, &tokens, Token.Type.minus, "-"),
-            '*' => try addNullToken(&tracker, &tokens, Token.Type.star, "*"),
+            '.' => try self.addNullToken(Token.Type.dot, "."),
+            ':' => try self.addNullToken(Token.Type.colon, ":"),
+            ';' => try self.addNullToken(Token.Type.semicolon, ";"),
+            ',' => try self.addNullToken(Token.Type.comma, ","),
+            '(' => try self.addNullToken(Token.Type.left_paren, "("),
+            ')' => try self.addNullToken(Token.Type.right_paren, ")"),
+            '{' => try self.addNullToken(Token.Type.left_curly_brace, "{"),
+            '}' => try self.addNullToken(Token.Type.right_curly_brace, "}"),
+            '[' => try self.addNullToken(Token.Type.left_bracket, "["),
+            ']' => try self.addNullToken(Token.Type.right_bracket, "]"),
+            '+' => try self.addNullToken(Token.Type.plus, "+"),
+            '-' => try self.addNullToken(Token.Type.minus, "-"),
+            '*' => try self.addNullToken(Token.Type.star, "*"),
             '/' => {
-                if (peekNext(&tracker, source) == '/') {
-                    tracker.advanceTo(2); // Skip the '//' characters
-                    while (peek(&tracker, source) != '\n' and !isEOF(&tracker, source)) {
-                        tracker.advance();
+                if (self.peekNext() == '/') {
+                    self.advanceTo(2); // Skip the '//' characters
+                    while (self.peek() != '\n' and !self.isEOF()) {
+                        self.advance();
                     }
-                    tracker.startPos = tracker.pos;
+                    self.startPos = self.pos;
                 } else {
-                    try addNullToken(&tracker, &tokens, Token.Type.slash, "/");
+                    try self.addNullToken(Token.Type.slash, "/");
                 }
             },
 
             '!' => {
-                if (peekNext(&tracker, source) == '=') {
-                    tracker.advance();
-                    try addNullToken(&tracker, &tokens, Token.Type.not_equal, "!=");
+                if (self.peekNext() == '=') {
+                    self.advance();
+                    try self.addNullToken(Token.Type.not_equal, "!=");
                 } else {
                     return Errors.UnexpectedToken;
                 }
             },
             '=' => {
-                if (peekNext(&tracker, source) == '=') {
-                    tracker.advance();
-                    try addNullToken(&tracker, &tokens, Token.Type.equal, "==");
+                if (self.peekNext() == '=') {
+                    self.advance();
+                    try self.addNullToken(Token.Type.equal, "==");
                 } else {
-                    try addNullToken(&tracker, &tokens, Token.Type.assign, "=");
+                    try self.addNullToken(Token.Type.assign, "=");
                 }
             },
             // Handle whitespace and newlines
-            ' ' => tracker.advance(),
-            '\t' => tracker.advanceTo(4),
-            '\n' => tracker.advanceLine(),
+            ' ' => self.advance(),
+            '\t' => self.advanceTo(4),
+            '\n' => self.advanceLine(),
             // Handle numbers
-            '0'...'9' => try scanNumber(&tracker, &tokens, source),
+            '0'...'9' => try self.scanNumber(),
             // Handle identifiers and keywords
-            'a'...'z', 'A'...'Z', '_' => try scanIdentifierOrKeyword(&tracker, &tokens, source),
+            'a'...'z', 'A'...'Z', '_' => try self.scanIdentifierOrKeyword(),
             // Handle strings
-            '"' => try scanString(&tracker, &tokens, source, allocator),
+            '"' => try self.scanString(),
             else => return Errors.UnexpectedToken,
         }
     }
 
-    try tokens.append(Token{
+    try self.tokens.append(Token{
         .token_type = Token.Type.eof,
         .lexeme = "",
         .literal = null,
-        .line = tracker.line,
-        .pos = tracker.startPos,
+        .line = self.line,
+        .pos = self.startPos,
     });
 
-    return tokens;
+    return self.tokens;
 }
 
-fn addToken(tracker: *Tracker, tokens: *std.ArrayList(Token), token_type: Token.Type, lexeme: []const u8, literal: ?Token.LiteralValue) Errors!void {
-    try tokens.append(Token{
+fn addToken(self: *@This(), token_type: Token.Type, lexeme: []const u8, literal: ?Token.LiteralValue) Errors!void {
+    try self.tokens.append(Token{
         .token_type = token_type,
         .lexeme = lexeme,
         .literal = literal,
-        .line = tracker.line,
-        .pos = tracker.startPos,
+        .line = self.line,
+        .pos = self.startPos,
     });
 }
 
-fn addNullToken(tracker: *Tracker, tokens: *std.ArrayList(Token), token_type: Token.Type, lexeme: []const u8) Errors!void {
-    try addToken(tracker, tokens, token_type, lexeme, null);
-    tracker.advance();
+fn addNullToken(self: *@This(), token_type: Token.Type, lexeme: []const u8) Errors!void {
+    try self.addToken(token_type, lexeme, null);
+    self.advance();
 }
 
-fn scanNumber(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const u8) Errors!void {
-    const start = tracker.pos;
-    while (!isEOF(tracker, source) and std.ascii.isDigit(source[tracker.pos])) {
-        tracker.advance();
+fn scanNumber(self: *@This()) Errors!void {
+    const start = self.pos;
+    while (!self.isEOF() and std.ascii.isDigit(self.source[self.pos])) {
+        self.advance();
     }
 
-    const lexeme = source[start..tracker.pos];
+    const lexeme = self.source[start..self.pos];
     const number = try std.fmt.parseFloat(f64, lexeme);
 
-    try addToken(tracker, tokens, Token.Type.number_literal, lexeme, Token.LiteralValue{ .number = number });
+    try self.addToken(Token.Type.number_literal, lexeme, Token.LiteralValue{ .number = number });
 }
 
-fn scanIdentifierOrKeyword(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const u8) Errors!void {
-    const start = tracker.pos;
-    while (!isEOF(tracker, source) and (std.ascii.isAlphanumeric(source[tracker.pos]) or source[tracker.pos] == '_')) {
-        tracker.advance();
+fn scanIdentifierOrKeyword(self: *@This()) Errors!void {
+    const start = self.pos;
+    while (!self.isEOF() and (std.ascii.isAlphanumeric(self.source[self.pos]) or self.source[self.pos] == '_')) {
+        self.advance();
     }
 
-    const lexeme = source[start..tracker.pos];
+    const lexeme = self.source[start..self.pos];
     var token_type = Token.Type.identifier;
 
     if (std.mem.eql(u8, lexeme, "let")) {
@@ -172,47 +171,60 @@ fn scanIdentifierOrKeyword(tracker: *Tracker, tokens: *std.ArrayList(Token), sou
         else => null,
     };
 
-    try addToken(tracker, tokens, token_type, lexeme, literal);
+    try self.addToken(token_type, lexeme, literal);
 }
 
-fn scanString(tracker: *Tracker, tokens: *std.ArrayList(Token), source: []const u8, allocator: std.mem.Allocator) Errors!void {
-    tracker.advance(); // Skip the opening quote
-    const start = tracker.pos;
+fn scanString(self: *@This()) Errors!void {
+    self.advance(); // Skip the opening quote
+    const start = self.pos;
 
-    while (!isEOF(tracker, source) and source[tracker.pos] != '"') {
-        if (source[tracker.pos] == '\n') {
-            tracker.line += 1;
-            tracker.pos = 0;
+    while (!self.isEOF() and self.source[self.pos] != '"') {
+        if (self.source[self.pos] == '\n') {
+            self.line += 1;
+            self.pos = 0;
         } else {
-            tracker.advance();
+            self.advance();
         }
     }
 
-    if (tracker.pos >= source.len) {
+    if (self.pos >= self.source.len) {
         return Errors.UnterminatedString;
     }
 
-    const lexeme = source[start..tracker.pos];
-    const lexemeCopy = try allocator.dupe(u8, lexeme);
-    tracker.advance(); // Skip the closing quote
+    const lexeme = self.source[start..self.pos];
+    const lexemeCopy = try self.allocator.dupe(u8, lexeme);
+    self.advance(); // Skip the closing quote
 
-    try addToken(tracker, tokens, Token.Type.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });
+    try self.addToken(Token.Type.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });
 }
 
-fn isEOF(tracker: *Tracker, source: []const u8) bool {
-    return tracker.pos >= source.len;
+fn isEOF(self: *@This()) bool {
+    return self.pos >= self.source.len;
 }
 
-fn peek(tracker: *Tracker, source: []const u8) ?u8 {
-    if (isEOF(tracker, source)) {
+fn peek(self: *@This()) ?u8 {
+    if (self.isEOF()) {
         return null;
     }
-    return source[tracker.pos];
+    return self.source[self.pos];
 }
 
-fn peekNext(tracker: *Tracker, source: []const u8) ?u8 {
-    if (tracker.pos + 1 >= source.len) {
+fn peekNext(self: *@This()) ?u8 {
+    if (self.pos + 1 >= self.source.len) {
         return null;
     }
-    return source[tracker.pos + 1];
+    return self.source[self.pos + 1];
+}
+
+fn advance(self: *@This()) void {
+    self.advanceTo(1);
+}
+
+fn advanceTo(self: *@This(), to: usize) void {
+    self.pos += to;
+}
+
+fn advanceLine(self: *@This()) void {
+    self.line += 1;
+    self.pos += 1;
 }
