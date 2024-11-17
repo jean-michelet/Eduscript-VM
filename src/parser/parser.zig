@@ -69,15 +69,6 @@ fn parseExpr(self: *@This(), allocator: std.mem.Allocator, min_precedence: usize
     return left;
 }
 
-fn getPrecedence(_: *@This(), token_type: Token.Type) usize {
-    switch (token_type) {
-        .equal, .not_equal => return 10,
-        .plus, .minus => return 11,
-        .star, .slash => return 12,
-        else => return 0,
-    }
-}
-
 fn parsePrimaryExpr(self: *@This(), allocator: std.mem.Allocator) !?Node.Expr {
     if (self.match(Token.Type.number_literal)) {
         // Handle number literal
@@ -117,6 +108,15 @@ fn parsePrimaryExpr(self: *@This(), allocator: std.mem.Allocator) !?Node.Expr {
     }
 
     return null;
+}
+
+fn getPrecedence(_: *@This(), token_type: Token.Type) usize {
+    switch (token_type) {
+        .equal, .not_equal => return 10,
+        .plus, .minus => return 11,
+        .star, .slash => return 12,
+        else => return 0,
+    }
 }
 
 fn consume(self: *@This(), token_type: Token.Type) !Token {
