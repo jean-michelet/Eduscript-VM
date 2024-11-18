@@ -3,6 +3,8 @@ const Token = @import("../scanner/token.zig");
 const Scanner = @import("../scanner/scanner.zig");
 const Node = @import("node.zig");
 
+const Errors = error{} || Scanner.Errors;
+
 tokens: []const Token,
 current: usize,
 
@@ -13,7 +15,7 @@ pub fn init() @This() {
     };
 }
 
-pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const u8) !Node.Program {
+pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const u8) Errors!Node.Program {
     var scannerArena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer scannerArena.deinit();
     const scannerAllocator = scannerArena.allocator();
@@ -34,11 +36,11 @@ pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const 
     return program;
 }
 
-fn parseStatement(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt {
+fn parseStatement(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
     return try self.parseExprStmt(arenaAllocator);
 }
 
-fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt {
+fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
     const expr = try self.parseExpr(arenaAllocator, 0);
     try self.expectAndAvance(.semicolon);
     if (expr == null) {
@@ -48,7 +50,7 @@ fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt {
     return Node.Stmt{ .expr = expr.? };
 }
 
-fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: usize) !?Node.Expr {
+fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: usize) Errors!?Node.Expr {
     var left = try self.parsePrimaryExpr(arenaAllocator);
 
     // Try to create binary expression node (e.g. 1 + 2, true == false)
@@ -70,7 +72,15 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
     return left;
 }
 
-fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) !?Node.Expr {
+fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?Node.Expr {
+    if (self.match(.left_paren)) {
+        // Handle parenthesized expression
+        try self.expectAndAvance(.left_paren);
+        const expr = try self.parseExpr(arenaAllocator, 0) orelse unreachable;
+        try self.expectAndAvance(.right_paren);
+        return expr;
+    }
+
     if (self.match(.number_literal)) {
         // Handle number literal
         const token = try self.consume(.number_literal);
@@ -128,7 +138,7 @@ fn getPrecedence(_: *@This(), token_type: Token.Type) usize {
     }
 }
 
-fn consume(self: *@This(), token_type: Token.Type) !Token {
+fn consume(self: *@This(), token_type: Token.Type) Errors!Token {
     try self.expect(token_type);
 
     const token = self.tokens[self.current];
@@ -136,13 +146,13 @@ fn consume(self: *@This(), token_type: Token.Type) !Token {
     return token;
 }
 
-fn expect(self: *@This(), token_type: Token.Type) !void {
+fn expect(self: *@This(), token_type: Token.Type) Errors!void {
     if (self.peek().token_type != token_type) {
         return error.UnexpectedToken;
     }
 }
 
-fn expectAndAvance(self: *@This(), token_type: Token.Type) !void {
+fn expectAndAvance(self: *@This(), token_type: Token.Type) Errors!void {
     try self.expect(token_type);
 
     self.advance();

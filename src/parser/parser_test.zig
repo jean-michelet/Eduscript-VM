@@ -59,6 +59,9 @@ test "Parse right-nested binary expressions with precedence" {
 
     try testRightNestedBinaryExpr(allocator, "1 + 2 * 3;", Token.Type.plus, Token.Type.star);
     try testRightNestedBinaryExpr(allocator, "1 - 2 / 3;", Token.Type.minus, Token.Type.slash);
+
+    try testRightNestedBinaryExpr(allocator, "1 * (2 + 3);", Token.Type.star, Token.Type.plus);
+    try testRightNestedBinaryExpr(allocator, "1 / (2 - 3);", Token.Type.slash, Token.Type.minus);
 }
 
 test "Parse left-nested binary expressions with precedence" {
@@ -66,15 +69,18 @@ test "Parse left-nested binary expressions with precedence" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // For same precedence, parse to left
-    try testLeftNestedBinaryExpr(allocator, "2 + 3 - 1;", Token.Type.minus, Token.Type.plus);
-    try testLeftNestedBinaryExpr(allocator, "2 - 3 + 1;", Token.Type.plus, Token.Type.minus);
+    try testLeftNestedBinaryExpr(allocator, "(2 + 3) * 1;", Token.Type.star, Token.Type.plus);
+    try testLeftNestedBinaryExpr(allocator, "(2 - 3) / 1;", Token.Type.slash, Token.Type.minus);
+
+    try testLeftNestedBinaryExpr(allocator, "2 * 3 + 1;", Token.Type.plus, Token.Type.star);
+    try testLeftNestedBinaryExpr(allocator, "2 / 3 - 1;", Token.Type.minus, Token.Type.slash);
 
     try testLeftNestedBinaryExpr(allocator, "2 + 3 == 1;", Token.Type.equal, Token.Type.plus);
     try testLeftNestedBinaryExpr(allocator, "2 - 3 != 1;", Token.Type.not_equal, Token.Type.minus);
 
-    try testLeftNestedBinaryExpr(allocator, "2 * 3 + 1;", Token.Type.plus, Token.Type.star);
-    try testLeftNestedBinaryExpr(allocator, "2 / 3 - 1;", Token.Type.minus, Token.Type.slash);
+    // For same precedence, parse to left
+    try testLeftNestedBinaryExpr(allocator, "2 + 3 - 1;", Token.Type.minus, Token.Type.plus);
+    try testLeftNestedBinaryExpr(allocator, "2 - 3 + 1;", Token.Type.plus, Token.Type.minus);
 }
 
 fn testBinaryExpr(binary: Node.Binary, expectedOp: Token.Type, left: f64, right: f64) !void {
