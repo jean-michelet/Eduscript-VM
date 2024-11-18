@@ -13,33 +13,33 @@ pub fn init() @This() {
     };
 }
 
-pub fn parse(self: *@This(), allocator: std.mem.Allocator, source: []const u8) !Node.Program {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const scannerAllocator = arena.allocator();
+pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const u8) !Node.Program {
+    var scannerArena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scannerArena.deinit();
+    const scannerAllocator = scannerArena.allocator();
 
     var scanner = Scanner.init(scannerAllocator, source);
 
-    const tokenList = try scanner.scanTokens();
+    const tokenList = try scanner.scanTokens(scannerAllocator);
     self.tokens = tokenList.items;
     var program = Node.Program{
-        .statements = std.ArrayList(Node.Stmt).init(allocator),
+        .statements = std.ArrayList(Node.Stmt).init(arenaAllocator),
     };
 
     while (self.current < self.tokens.len and self.peek().token_type != Token.Type.eof) {
-        const stmt = try self.parseStatement(allocator);
+        const stmt = try self.parseStatement(arenaAllocator);
         try program.statements.append(stmt);
     }
 
     return program;
 }
 
-fn parseStatement(self: *@This(), allocator: std.mem.Allocator) !Node.Stmt {
-    return try self.parseExprStmt(allocator);
+fn parseStatement(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt {
+    return try self.parseExprStmt(arenaAllocator);
 }
 
-fn parseExprStmt(self: *@This(), allocator: std.mem.Allocator) !Node.Stmt {
-    const expr = try self.parseExpr(allocator, 0);
+fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt {
+    const expr = try self.parseExpr(arenaAllocator, 0);
     try self.expectAndAvance(Token.Type.semicolon);
     if (expr == null) {
         return Node.Stmt{ .empty = Node.Empty{} };
@@ -48,8 +48,8 @@ fn parseExprStmt(self: *@This(), allocator: std.mem.Allocator) !Node.Stmt {
     return Node.Stmt{ .expr = expr.? };
 }
 
-fn parseExpr(self: *@This(), allocator: std.mem.Allocator, min_precedence: usize) !?Node.Expr {
-    var left = try self.parsePrimaryExpr(allocator);
+fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: usize) !?Node.Expr {
+    var left = try self.parsePrimaryExpr(arenaAllocator);
 
     // Try to create binary expression node (e.g. 1 + 2, true == false)
     while (self.current < self.tokens.len) {
@@ -61,15 +61,15 @@ fn parseExpr(self: *@This(), allocator: std.mem.Allocator, min_precedence: usize
 
         op = try self.consume(op.token_type);
 
-        const right = try self.parseExpr(allocator, precedence + 1) orelse unreachable;
+        const right = try self.parseExpr(arenaAllocator, precedence + 1) orelse unreachable;
 
-        left = Node.Expr{ .binary = try Node.createBinary(allocator, op.token_type, left.?, right) };
+        left = Node.Expr{ .binary = try Node.createBinary(arenaAllocator, op.token_type, left.?, right) };
     }
 
     return left;
 }
 
-fn parsePrimaryExpr(self: *@This(), allocator: std.mem.Allocator) !?Node.Expr {
+fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) !?Node.Expr {
     if (self.match(Token.Type.number_literal)) {
         // Handle number literal
         const token = try self.consume(Token.Type.number_literal);
@@ -82,7 +82,7 @@ fn parsePrimaryExpr(self: *@This(), allocator: std.mem.Allocator) !?Node.Expr {
         // Handle string literal
         const token = try self.consume(Token.Type.string_literal);
 
-        const value = try allocator.dupe(u8, token.literal.?.string);
+        const value = try arenaAllocator.dupe(u8, token.literal.?.string);
         return Node.Expr{
             .literal = Node.Literal{ .string = value },
         };

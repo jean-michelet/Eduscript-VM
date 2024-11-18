@@ -1,6 +1,7 @@
 const std = @import("std");
 const Scanner = @import("scanner/scanner.zig");
 const Parser = @import("parser/parser.zig").Parser;
+const Node = @import("parser/node.zig");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -19,4 +20,8 @@ pub fn main() !void {
             token.pos,
         });
     }
+
+    const nodes = try allocator.create([2]f64);
+    nodes[0] = 1;
+    std.debug.print("array: {d}", .{nodes[0]});
 }

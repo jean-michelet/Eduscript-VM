@@ -3,25 +3,23 @@ const Token = @import("./token.zig");
 
 pub const Errors = error{ UnexpectedToken, UnterminatedString } || error{ OutOfMemory, InvalidCharacter };
 
-allocator: std.mem.Allocator,
 source: []const u8,
 tokens: std.ArrayList(Token),
 line: usize,
 startPos: usize,
 pos: usize,
 
-pub fn init(allocator: std.mem.Allocator, source: []const u8) @This() {
+pub fn init(arenaAllocator: std.mem.Allocator, source: []const u8) @This() {
     return @This(){
-        .allocator = allocator,
         .source = source,
-        .tokens = std.ArrayList(Token).init(allocator),
+        .tokens = std.ArrayList(Token).init(arenaAllocator),
         .line = 1,
         .startPos = 0,
         .pos = 0,
     };
 }
 
-pub fn scanTokens(self: *@This()) Errors!std.ArrayList(Token) {
+pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.ArrayList(Token) {
     self.tokens.clearAndFree();
 
     while (!self.isEOF()) {
@@ -80,7 +78,7 @@ pub fn scanTokens(self: *@This()) Errors!std.ArrayList(Token) {
             // Handle identifiers and keywords
             'a'...'z', 'A'...'Z', '_' => try self.scanIdentifierOrKeyword(),
             // Handle strings
-            '"' => try self.scanString(),
+            '"' => try self.scanString(arenaAllocator),
             else => return Errors.UnexpectedToken,
         }
     }
@@ -174,7 +172,7 @@ fn scanIdentifierOrKeyword(self: *@This()) Errors!void {
     try self.addToken(token_type, lexeme, literal);
 }
 
-fn scanString(self: *@This()) Errors!void {
+fn scanString(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!void {
     self.advance(); // Skip the opening quote
     const start = self.pos;
 
@@ -192,7 +190,7 @@ fn scanString(self: *@This()) Errors!void {
     }
 
     const lexeme = self.source[start..self.pos];
-    const lexemeCopy = try self.allocator.dupe(u8, lexeme);
+    const lexemeCopy = try arenaAllocator.dupe(u8, lexeme);
     self.advance(); // Skip the closing quote
 
     try self.addToken(Token.Type.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });

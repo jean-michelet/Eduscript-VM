@@ -4,7 +4,7 @@ const Token = @import("token.zig");
 
 fn testScanToken(allocator: std.mem.Allocator, source: []const u8, expected_type: Token.Type, expected_lexeme: []const u8) !void {
     var scanner = Scanner.init(allocator, source);
-    var tokens: std.ArrayList(Token) = try scanner.scanTokens();
+    var tokens: std.ArrayList(Token) = try scanner.scanTokens(allocator);
     defer tokens.deinit();
     const token: Token = tokens.items[0];
 
@@ -28,7 +28,7 @@ test "skip comments" {
         \\ // third comment
     ;
     var scanner = Scanner.init(allocator, source);
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
     try std.testing.expectEqual(
@@ -46,7 +46,7 @@ test "skip whitespace" {
 
     const source = "   12";
     var scanner = Scanner.init(allocator, source);
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
     try std.testing.expectEqual(token.pos, source.len - 2);
@@ -59,7 +59,7 @@ test "track current line number" {
     const source = "\n\n 12";
 
     var scanner = Scanner.init(allocator, source);
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
     try std.testing.expectEqual(token.line, 3);
@@ -71,7 +71,7 @@ test "error on invalid token" {
     const allocator = arena.allocator();
     const source = "@";
     var scanner = Scanner.init(allocator, source);
-    try std.testing.expectError(Scanner.Errors.UnexpectedToken, scanner.scanTokens());
+    try std.testing.expectError(Scanner.Errors.UnexpectedToken, scanner.scanTokens(allocator));
 }
 
 test "single-character and symbol tokens" {
@@ -163,7 +163,7 @@ test "string literal" {
     const allocator = arena.allocator();
 
     var scanner = Scanner.init(allocator, "\"Hello world\"");
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
     try std.testing.expectEqual(token.token_type, Token.Type.string_literal);
@@ -177,7 +177,7 @@ test "number literal" {
     const allocator = arena.allocator();
 
     var scanner = Scanner.init(allocator, "123");
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
     try std.testing.expectEqual(token.token_type, Token.Type.number_literal);
@@ -191,7 +191,7 @@ test "boolean literals" {
     const allocator = arena.allocator();
 
     var scanner = Scanner.init(allocator, "true false");
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
 
     try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
     try std.testing.expect(std.mem.eql(u8, tokens.items[0].lexeme, "true"));
@@ -204,7 +204,7 @@ test "scan symbols and literals" {
     const allocator = arena.allocator();
 
     var scanner = Scanner.init(allocator, "true+1;");
-    const tokens = try scanner.scanTokens();
+    const tokens = try scanner.scanTokens(allocator);
     try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
     try std.testing.expectEqual(tokens.items[1].token_type, Token.Type.plus);
     try std.testing.expectEqual(tokens.items[2].token_type, Token.Type.number_literal);
