@@ -26,7 +26,7 @@ pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const 
         .statements = std.ArrayList(Node.Stmt).init(arenaAllocator),
     };
 
-    while (self.current < self.tokens.len and self.peek().token_type != Token.Type.eof) {
+    while (self.current < self.tokens.len and self.peek().token_type != .eof) {
         const stmt = try self.parseStatement(arenaAllocator);
         try program.statements.append(stmt);
     }
@@ -40,7 +40,7 @@ fn parseStatement(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt 
 
 fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) !Node.Stmt {
     const expr = try self.parseExpr(arenaAllocator, 0);
-    try self.expectAndAvance(Token.Type.semicolon);
+    try self.expectAndAvance(.semicolon);
     if (expr == null) {
         return Node.Stmt{ .empty = Node.Empty{} };
     }
@@ -71,36 +71,44 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
 }
 
 fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) !?Node.Expr {
-    if (self.match(Token.Type.number_literal)) {
+    if (self.match(.number_literal)) {
         // Handle number literal
-        const token = try self.consume(Token.Type.number_literal);
+        const token = try self.consume(.number_literal);
         return Node.Expr{
             .literal = Node.Literal{
                 .number = token.literal.?.number,
             },
         };
-    } else if (self.match(Token.Type.string_literal)) {
+    }
+
+    if (self.match(.string_literal)) {
         // Handle string literal
-        const token = try self.consume(Token.Type.string_literal);
+        const token = try self.consume(.string_literal);
 
         const value = try arenaAllocator.dupe(u8, token.literal.?.string);
         return Node.Expr{
             .literal = Node.Literal{ .string = value },
         };
-    } else if (self.match(Token.Type.boolean_literal)) {
+    }
+
+    if (self.match(.boolean_literal)) {
         // Handle boolean literal
-        const token = try self.consume(Token.Type.boolean_literal);
+        const token = try self.consume(.boolean_literal);
         const bool_value = token.literal.?.boolean;
         return Node.Expr{
             .literal = Node.Literal{ .boolean = bool_value },
         };
-    } else if (self.match(Token.Type.null_literal)) {
+    }
+
+    if (self.match(.null_literal)) {
         // Handle null literal
         self.advance();
         return Node.Expr{
             .literal = Node.Literal{ .nullVal = {} },
         };
-    } else if (self.match(Token.Type.undefined_literal)) {
+    }
+
+    if (self.match(.undefined_literal)) {
         // Handle undefined literal
         self.advance();
         return Node.Expr{

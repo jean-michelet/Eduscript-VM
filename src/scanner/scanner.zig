@@ -28,19 +28,19 @@ pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.
 
         switch (c) {
             // Handle single-character tokens
-            '.' => try self.addNullToken(Token.Type.dot, "."),
-            ':' => try self.addNullToken(Token.Type.colon, ":"),
-            ';' => try self.addNullToken(Token.Type.semicolon, ";"),
-            ',' => try self.addNullToken(Token.Type.comma, ","),
-            '(' => try self.addNullToken(Token.Type.left_paren, "("),
-            ')' => try self.addNullToken(Token.Type.right_paren, ")"),
-            '{' => try self.addNullToken(Token.Type.left_curly_brace, "{"),
-            '}' => try self.addNullToken(Token.Type.right_curly_brace, "}"),
-            '[' => try self.addNullToken(Token.Type.left_bracket, "["),
-            ']' => try self.addNullToken(Token.Type.right_bracket, "]"),
-            '+' => try self.addNullToken(Token.Type.plus, "+"),
-            '-' => try self.addNullToken(Token.Type.minus, "-"),
-            '*' => try self.addNullToken(Token.Type.star, "*"),
+            '.' => try self.addNullToken(.dot, "."),
+            ':' => try self.addNullToken(.colon, ":"),
+            ';' => try self.addNullToken(.semicolon, ";"),
+            ',' => try self.addNullToken(.comma, ","),
+            '(' => try self.addNullToken(.left_paren, "("),
+            ')' => try self.addNullToken(.right_paren, ")"),
+            '{' => try self.addNullToken(.left_curly_brace, "{"),
+            '}' => try self.addNullToken(.right_curly_brace, "}"),
+            '[' => try self.addNullToken(.left_bracket, "["),
+            ']' => try self.addNullToken(.right_bracket, "]"),
+            '+' => try self.addNullToken(.plus, "+"),
+            '-' => try self.addNullToken(.minus, "-"),
+            '*' => try self.addNullToken(.star, "*"),
             '/' => {
                 if (self.peekNext() == '/') {
                     self.advanceTo(2); // Skip the '//' characters
@@ -49,14 +49,14 @@ pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.
                     }
                     self.startPos = self.pos;
                 } else {
-                    try self.addNullToken(Token.Type.slash, "/");
+                    try self.addNullToken(.slash, "/");
                 }
             },
 
             '!' => {
                 if (self.peekNext() == '=') {
                     self.advance();
-                    try self.addNullToken(Token.Type.not_equal, "!=");
+                    try self.addNullToken(.not_equal, "!=");
                 } else {
                     return Errors.UnexpectedToken;
                 }
@@ -64,9 +64,9 @@ pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.
             '=' => {
                 if (self.peekNext() == '=') {
                     self.advance();
-                    try self.addNullToken(Token.Type.equal, "==");
+                    try self.addNullToken(.equal, "==");
                 } else {
-                    try self.addNullToken(Token.Type.assign, "=");
+                    try self.addNullToken(.assign, "=");
                 }
             },
             // Handle whitespace and newlines
@@ -84,7 +84,7 @@ pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.
     }
 
     try self.tokens.append(Token{
-        .token_type = Token.Type.eof,
+        .token_type = .eof,
         .lexeme = "",
         .literal = null,
         .line = self.line,
@@ -118,7 +118,7 @@ fn scanNumber(self: *@This()) Errors!void {
     const lexeme = self.source[start..self.pos];
     const number = try std.fmt.parseFloat(f64, lexeme);
 
-    try self.addToken(Token.Type.number_literal, lexeme, Token.LiteralValue{ .number = number });
+    try self.addToken(.number_literal, lexeme, Token.LiteralValue{ .number = number });
 }
 
 fn scanIdentifierOrKeyword(self: *@This()) Errors!void {
@@ -131,35 +131,35 @@ fn scanIdentifierOrKeyword(self: *@This()) Errors!void {
     var token_type = Token.Type.identifier;
 
     if (std.mem.eql(u8, lexeme, "let")) {
-        token_type = Token.Type.let;
+        token_type = .let;
     } else if (std.mem.eql(u8, lexeme, "function")) {
-        token_type = Token.Type.function;
+        token_type = .function;
     } else if (std.mem.eql(u8, lexeme, "if")) {
-        token_type = Token.Type.if_;
+        token_type = .if_;
     } else if (std.mem.eql(u8, lexeme, "else")) {
-        token_type = Token.Type.else_;
+        token_type = .else_;
     } else if (std.mem.eql(u8, lexeme, "while")) {
-        token_type = Token.Type.while_;
+        token_type = .while_;
     } else if (std.mem.eql(u8, lexeme, "return")) {
-        token_type = Token.Type.return_;
+        token_type = .return_;
     } else if (std.mem.eql(u8, lexeme, "break")) {
-        token_type = Token.Type.break_;
+        token_type = .break_;
     } else if (std.mem.eql(u8, lexeme, "continue")) {
-        token_type = Token.Type.continue_;
+        token_type = .continue_;
     } else if (std.mem.eql(u8, lexeme, "number")) {
-        token_type = Token.Type.number_type;
+        token_type = .number_type;
     } else if (std.mem.eql(u8, lexeme, "string")) {
-        token_type = Token.Type.string_type;
+        token_type = .string_type;
     } else if (std.mem.eql(u8, lexeme, "boolean")) {
-        token_type = Token.Type.boolean_type;
+        token_type = .boolean_type;
     } else if (std.mem.eql(u8, lexeme, "void")) {
-        token_type = Token.Type.void_type;
+        token_type = .void_type;
     } else if (std.mem.eql(u8, lexeme, "true") or std.mem.eql(u8, lexeme, "false")) {
-        token_type = Token.Type.boolean_literal;
+        token_type = .boolean_literal;
     } else if (std.mem.eql(u8, lexeme, "null")) {
-        token_type = Token.Type.null_literal;
+        token_type = .null_literal;
     } else if (std.mem.eql(u8, lexeme, "undefined")) {
-        token_type = Token.Type.undefined_literal;
+        token_type = .undefined_literal;
     }
 
     const literal: ?Token.LiteralValue = switch (token_type) {
@@ -193,7 +193,7 @@ fn scanString(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!void {
     const lexemeCopy = try arenaAllocator.dupe(u8, lexeme);
     self.advance(); // Skip the closing quote
 
-    try self.addToken(Token.Type.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });
+    try self.addToken(.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });
 }
 
 fn isEOF(self: *@This()) bool {
