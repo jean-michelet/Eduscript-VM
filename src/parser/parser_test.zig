@@ -79,8 +79,8 @@ test "Parse left-nested binary expressions with precedence" {
 
 fn testBinaryExpr(binary: Node.Binary, expectedOp: Token.Type, left: f64, right: f64) !void {
     try std.testing.expectEqual(binary.operator, expectedOp);
-    try std.testing.expectEqual(binary.left.literal.number, left);
-    try std.testing.expectEqual(binary.right.literal.number, right);
+    try std.testing.expectEqual(binary.left().literal.number, left);
+    try std.testing.expectEqual(binary.right().literal.number, right);
 }
 
 fn testSimpleBinaryExpr(allocator: std.mem.Allocator, source: []const u8, expectedOp: Token.Type) !void {
@@ -101,9 +101,9 @@ fn testRightNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, t
 
     // The operator with less precedence
     try std.testing.expectEqual(binary.operator, topOp);
-    try std.testing.expectEqual(binary.left.literal.number, 1);
+    try std.testing.expectEqual(binary.left().literal.number, 1);
 
-    try testBinaryExpr(binary.right.binary, nestedOp, 2, 3);
+    try testBinaryExpr(binary.right().binary, nestedOp, 2, 3);
 }
 
 fn testLeftNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, topOp: Token.Type, nestedOp: Token.Type) !void {
@@ -115,7 +115,7 @@ fn testLeftNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, to
 
     // The operator with less precedence
     try std.testing.expectEqual(binary.operator, topOp);
-    try std.testing.expectEqual(binary.right.literal.number, 1);
+    try std.testing.expectEqual(binary.right().literal.number, 1);
 
-    try testBinaryExpr(binary.left.binary, nestedOp, 2, 3);
+    try testBinaryExpr(binary.left().binary, nestedOp, 2, 3);
 }

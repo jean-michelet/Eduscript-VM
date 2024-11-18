@@ -12,9 +12,28 @@ pub const Expr = union(enum) {
 };
 
 pub const Binary = struct {
-    left: *Expr,
+    operands: *[2]Expr,
     operator: Token.Type,
-    right: *Expr,
+
+    pub fn init(arenaAllocator: std.mem.Allocator, op: Token.Type, left_: Expr, right_: Expr) !@This() {
+        const binary = @This(){
+            .operands = try arenaAllocator.create([2]Expr),
+            .operator = op,
+        };
+
+        binary.operands[0] = left_;
+        binary.operands[1] = right_;
+
+        return binary;
+    }
+
+    pub fn left(self: *const @This()) Expr {
+        return self.operands[0];
+    }
+
+    pub fn right(self: *const @This()) Expr {
+        return self.operands[1];
+    }
 };
 
 pub const Literal = union(enum) {
@@ -30,16 +49,3 @@ pub const Empty = struct {};
 pub const Program = struct {
     statements: std.ArrayList(Stmt),
 };
-
-pub fn createBinary(allocator: std.mem.Allocator, op: Token.Type, left: Expr, right: Expr) !Binary {
-    const binary = Binary{
-        .left = try allocator.create(Expr),
-        .right = try allocator.create(Expr),
-        .operator = op,
-    };
-
-    binary.left.* = left;
-    binary.right.* = right;
-
-    return binary;
-}

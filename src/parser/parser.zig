@@ -63,7 +63,8 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
 
         const right = try self.parseExpr(arenaAllocator, precedence + 1) orelse unreachable;
 
-        left = Node.Expr{ .binary = try Node.createBinary(arenaAllocator, op.token_type, left.?, right) };
+        const binary = try Node.Binary.init(arenaAllocator, op.token_type, left.?, right);
+        left = Node.Expr{ .binary = binary };
     }
 
     return left;
