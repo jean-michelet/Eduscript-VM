@@ -53,6 +53,20 @@ fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.
 fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: usize) Errors!?Node.Expr {
     var left = try self.parsePrimaryExpr(arenaAllocator);
 
+    const isAssignment = left != null and switch (left.?) {
+        .identifier => self.peek().token_type == .assign,
+        else => false,
+    };
+
+    if (isAssignment) {
+        try self.expectAndAvance(.assign);
+
+        const right = try self.parseExpr(arenaAllocator, 0) orelse unreachable;
+        const assign = try Node.Assign.init(arenaAllocator, .assign, left.?.identifier, right);
+
+        return Node.Expr{ .assign = assign };
+    }
+
     // Try to create binary expression node (e.g. 1 + 2, true == false)
     while (self.current < self.tokens.len) {
         var op = self.peek();
@@ -171,7 +185,11 @@ fn advance(self: *@This()) void {
 }
 
 fn peek(self: *@This()) Token {
-    return self.tokens[self.current];
+    return self.peekAt(0);
+}
+
+fn peekAt(self: *@This(), at: usize) Token {
+    return self.tokens[self.current + at];
 }
 
 fn match(self: *@This(), token_type: Token.Type) bool {

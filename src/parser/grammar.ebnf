@@ -38,7 +38,8 @@ expression_statement = expression ";" ;
 
 expression = assignment ;
 
-assignment = logical_or [ "=" expression ] ;
+assignment = identifier "=" expression
+           | additive ;
 
 additive = multiplicative { ( "+" | "-" ) multiplicative } ;
 

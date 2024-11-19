@@ -47,6 +47,19 @@ test "Parse identifier" {
     try std.testing.expectEqualStrings(nodes[0].expr.identifier.name, "letter");
 }
 
+test "Parse assignment" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "a = 2;");
+
+    try std.testing.expectEqual(1, nodes.len);
+    try std.testing.expectEqualStrings(nodes[0].expr.assign.id.name, "a");
+    try std.testing.expectEqual(nodes[0].expr.assign.right.*, Node.Expr{ .literal = Node.Literal{ .number = 2 } });
+    try std.testing.expectEqual(nodes[0].expr.assign.op, .assign);
+}
+
 test "Parse simple binary expressions" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -95,7 +108,7 @@ test "Parse left-nested binary expressions with precedence" {
 }
 
 fn testBinaryExpr(binary: Node.Binary, expectedOp: Token.Type, left: f64, right: f64) !void {
-    try std.testing.expectEqual(binary.operator, expectedOp);
+    try std.testing.expectEqual(binary.op, expectedOp);
     try std.testing.expectEqual(binary.left().literal.number, left);
     try std.testing.expectEqual(binary.right().literal.number, right);
 }
@@ -117,7 +130,7 @@ fn testRightNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, t
     const binary = nodes[0].expr.binary;
 
     // The operator with less precedence
-    try std.testing.expectEqual(binary.operator, topOp);
+    try std.testing.expectEqual(binary.op, topOp);
     try std.testing.expectEqual(binary.left().literal.number, 1);
 
     try testBinaryExpr(binary.right().binary, nestedOp, 2, 3);
@@ -131,7 +144,7 @@ fn testLeftNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, to
     const binary = nodes[0].expr.binary;
 
     // The operator with less precedence
-    try std.testing.expectEqual(binary.operator, topOp);
+    try std.testing.expectEqual(binary.op, topOp);
     try std.testing.expectEqual(binary.right().literal.number, 1);
 
     try testBinaryExpr(binary.left().binary, nestedOp, 2, 3);

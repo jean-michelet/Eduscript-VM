@@ -6,16 +6,30 @@ pub const Stmt = union(enum) {
     empty: Empty,
 };
 
-pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier };
+pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier, assign: Assign };
+
+pub const Assign = struct {
+    id: Identifier,
+    right: *Expr,
+    op: Token.Type,
+
+    pub fn init(arenaAllocator: std.mem.Allocator, op: Token.Type, id: Identifier, right: Expr) !@This() {
+        const assign = @This(){ .id = id, .right = try arenaAllocator.create(Expr), .op = op };
+
+        assign.right.* = right;
+
+        return assign;
+    }
+};
 
 pub const Binary = struct {
     operands: *[2]Expr,
-    operator: Token.Type,
+    op: Token.Type,
 
     pub fn init(arenaAllocator: std.mem.Allocator, op: Token.Type, left_: Expr, right_: Expr) !@This() {
         const binary = @This(){
             .operands = try arenaAllocator.create([2]Expr),
-            .operator = op,
+            .op = op,
         };
 
         binary.operands[0] = left_;
