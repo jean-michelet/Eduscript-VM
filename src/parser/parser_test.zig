@@ -21,6 +21,23 @@ test "Parse empty statement" {
     try std.testing.expectEqual(nodes[0], Node.Stmt{ .empty = Node.Empty{} });
 }
 
+test "Parse jump statements" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "continue;break;return;return 1;");
+
+    try std.testing.expectEqual(4, nodes.len);
+    try std.testing.expectEqual(nodes[0], Node.Stmt{ .continue_ = Node.Continue{} });
+    try std.testing.expectEqual(nodes[1], Node.Stmt{ .break_ = Node.Break{} });
+
+    try std.testing.expectEqual(nodes[2], Node.Stmt{ .return_ = Node.Return{ .expr = null } });
+
+    const expr = Node.Expr{ .literal = Node.Literal{ .number = 1 } };
+    try std.testing.expectEqual(nodes[3], Node.Stmt{ .return_ = Node.Return{ .expr = expr } });
+}
+
 test "Parse literal expressions" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();

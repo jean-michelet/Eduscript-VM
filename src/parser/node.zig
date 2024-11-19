@@ -4,6 +4,9 @@ const Token = @import("../scanner/token.zig");
 pub const Stmt = union(enum) {
     expr: Expr,
     empty: Empty,
+    continue_: Continue,
+    break_: Break,
+    return_: Return,
 };
 
 pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier, assign: Assign };
@@ -59,7 +62,13 @@ pub const Literal = union(enum) {
     undefinedVal: void,
 };
 
+pub const Break = struct {};
+
+pub const Continue = struct {};
+
 pub const Empty = struct {};
+
+pub const Return = struct { expr: ?Expr };
 
 pub const Program = struct {
     statements: std.ArrayList(Stmt),

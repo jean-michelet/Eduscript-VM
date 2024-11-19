@@ -31,29 +31,50 @@ pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const 
     while (self.current < self.tokens.len and self.peek().token_type != .eof) {
         const stmt = try self.parseStatement(arenaAllocator);
         try program.statements.append(stmt);
+        try self.expectAndAvance(.semicolon);
     }
 
     return program;
 }
 
 fn parseStatement(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
+    if (self.match(.semicolon)) {
+        return Node.Stmt{ .empty = Node.Empty{} };
+    }
+
+    if (self.match(.continue_)) {
+        self.advance();
+        return Node.Stmt{ .continue_ = Node.Continue{} };
+    }
+
+    if (self.match(.break_)) {
+        self.advance();
+        return Node.Stmt{ .break_ = Node.Break{} };
+    }
+
+    if (self.match(.return_)) {
+        self.advance();
+        var expr: ?Node.Expr = null;
+        if (self.peek().token_type != .semicolon) {
+            expr = try self.parseExpr(arenaAllocator, 0);
+        }
+
+        return Node.Stmt{ .return_ = Node.Return{ .expr = expr } };
+    }
+
     return try self.parseExprStmt(arenaAllocator);
 }
 
 fn parseExprStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
     const expr = try self.parseExpr(arenaAllocator, 0);
-    try self.expectAndAvance(.semicolon);
-    if (expr == null) {
-        return Node.Stmt{ .empty = Node.Empty{} };
-    }
 
-    return Node.Stmt{ .expr = expr.? };
+    return Node.Stmt{ .expr = expr };
 }
 
-fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: usize) Errors!?Node.Expr {
+fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: usize) Errors!Node.Expr {
     var left = try self.parsePrimaryExpr(arenaAllocator);
 
-    const isAssignment = left != null and switch (left.?) {
+    const isAssignment = switch (left) {
         .identifier => self.peek().token_type == .assign,
         else => false,
     };
@@ -61,8 +82,8 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
     if (isAssignment) {
         try self.expectAndAvance(.assign);
 
-        const right = try self.parseExpr(arenaAllocator, 0) orelse unreachable;
-        const assign = try Node.Assign.init(arenaAllocator, .assign, left.?.identifier, right);
+        const right = try self.parseExpr(arenaAllocator, 0);
+        const assign = try Node.Assign.init(arenaAllocator, .assign, left.identifier, right);
 
         return Node.Expr{ .assign = assign };
     }
@@ -77,16 +98,16 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
 
         op = try self.consume(op.token_type);
 
-        const right = try self.parseExpr(arenaAllocator, precedence + 1) orelse unreachable;
+        const right = try self.parseExpr(arenaAllocator, precedence + 1);
 
-        const binary = try Node.Binary.init(arenaAllocator, op.token_type, left.?, right);
+        const binary = try Node.Binary.init(arenaAllocator, op.token_type, left, right);
         left = Node.Expr{ .binary = binary };
     }
 
     return left;
 }
 
-fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?Node.Expr {
+fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Expr {
     if (self.match(.identifier)) {
         // Handle identifier expression
         const token = try self.consume(.identifier);
@@ -98,7 +119,7 @@ fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?N
     if (self.match(.left_paren)) {
         // Handle parenthesized expression
         try self.expectAndAvance(.left_paren);
-        const expr = try self.parseExpr(arenaAllocator, 0) orelse unreachable;
+        const expr = try self.parseExpr(arenaAllocator, 0);
         try self.expectAndAvance(.right_paren);
         return expr;
     }
@@ -148,7 +169,7 @@ fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?N
         };
     }
 
-    return null;
+    return Errors.UnexpectedToken;
 }
 
 fn getPrecedence(_: *@This(), token_type: Token.Type) usize {
