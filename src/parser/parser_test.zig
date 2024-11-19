@@ -21,7 +21,7 @@ test "Parse empty statement" {
     try std.testing.expectEqual(nodes[0], Node.Stmt{ .empty = Node.Empty{} });
 }
 
-test "Parse literal statements" {
+test "Parse literal expressions" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -34,6 +34,17 @@ test "Parse literal statements" {
     try std.testing.expect(nodes[2].expr.literal.boolean);
     try std.testing.expectEqual(nodes[3].expr.literal.undefinedVal, {});
     try std.testing.expectEqual(nodes[4].expr.literal.nullVal, {});
+}
+
+test "Parse identifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "letter;");
+
+    try std.testing.expectEqual(1, nodes.len);
+    try std.testing.expectEqualStrings(nodes[0].expr.identifier.name, "letter");
 }
 
 test "Parse simple binary expressions" {

@@ -40,8 +40,6 @@ expression = assignment ;
 
 assignment = logical_or [ "=" expression ] ;
 
-equality = relational [ ( "==" | "!=" ) relational ] ;
-
 additive = multiplicative { ( "+" | "-" ) multiplicative } ;
 
 multiplicative = primary { ( "*" | "/" ) primary } ;

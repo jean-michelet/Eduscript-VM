@@ -73,6 +73,14 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
 }
 
 fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?Node.Expr {
+    if (self.match(.identifier)) {
+        // Handle identifier expression
+        const token = try self.consume(.identifier);
+        const name = try arenaAllocator.dupe(u8, token.lexeme);
+
+        return Node.Expr{ .identifier = Node.Identifier{ .name = name } };
+    }
+
     if (self.match(.left_paren)) {
         // Handle parenthesized expression
         try self.expectAndAvance(.left_paren);

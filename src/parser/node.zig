@@ -6,10 +6,7 @@ pub const Stmt = union(enum) {
     empty: Empty,
 };
 
-pub const Expr = union(enum) {
-    binary: Binary,
-    literal: Literal,
-};
+pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier };
 
 pub const Binary = struct {
     operands: *[2]Expr,
@@ -34,6 +31,10 @@ pub const Binary = struct {
     pub fn right(self: *const @This()) Expr {
         return self.operands[1];
     }
+};
+
+pub const Identifier = struct {
+    name: []const u8,
 };
 
 pub const Literal = union(enum) {
