@@ -4,9 +4,49 @@ const Token = @import("../scanner/token.zig");
 pub const Stmt = union(enum) {
     expr: Expr,
     empty: Empty,
+    if_: If,
+    while_: While,
     continue_: Continue,
     break_: Break,
     return_: Return,
+};
+
+pub const If = struct {
+    test_: Expr,
+    branches: *[2]?Stmt,
+
+    pub fn init(arenaAllocator: std.mem.Allocator, test_: Expr, cons: Stmt, alt: ?Stmt) !@This() {
+        const ifStmt = @This(){
+            .test_ = test_,
+            .branches = try arenaAllocator.create([2]?Stmt),
+        };
+
+        ifStmt.branches[0] = cons;
+        ifStmt.branches[1] = alt;
+
+        return ifStmt;
+    }
+
+    pub fn consequent(self: *const @This()) ?Stmt {
+        return self.branches[0];
+    }
+
+    pub fn alternate(self: *const @This()) ?Stmt {
+        return self.branches[1];
+    }
+};
+
+pub const While = struct {
+    test_: Expr,
+    body: *Stmt,
+
+    pub fn init(arenaAllocator: std.mem.Allocator, test_: Expr, body: Stmt) !@This() {
+        const whileStmt = @This(){ .test_ = test_, .body = try arenaAllocator.create(Stmt) };
+
+        whileStmt.body.* = body;
+
+        return whileStmt;
+    }
 };
 
 pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier, assign: Assign };

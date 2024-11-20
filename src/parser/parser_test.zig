@@ -38,6 +38,35 @@ test "Parse jump statements" {
     try std.testing.expectEqual(nodes[3], Node.Stmt{ .return_ = Node.Return{ .expr = expr } });
 }
 
+test "Parse while statement" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "while (true) break;");
+
+    try std.testing.expectEqual(1, nodes.len);
+    try std.testing.expectEqual(nodes[0].while_.test_, Node.Expr{ .literal = Node.Literal{ .boolean = true } });
+    try std.testing.expectEqual(nodes[0].while_.body.*, Node.Stmt{ .break_ = Node.Break{} });
+}
+
+test "Parse if statement" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "if (true) return; if (true) return; else return;");
+
+    try std.testing.expectEqual(2, nodes.len);
+    try std.testing.expectEqual(nodes[0].if_.test_, Node.Expr{ .literal = Node.Literal{ .boolean = true } });
+
+    const returnStmt = Node.Stmt{ .return_ = Node.Return{ .expr = null } };
+    try std.testing.expectEqual(nodes[0].if_.consequent(), returnStmt);
+    try std.testing.expectEqual(nodes[0].if_.alternate(), null);
+
+    try std.testing.expectEqual(nodes[1].if_.alternate(), returnStmt);
+}
+
 test "Parse literal expressions" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
