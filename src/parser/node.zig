@@ -1,14 +1,26 @@
 const std = @import("std");
 const Token = @import("../scanner/token.zig");
 
+pub const Block = struct {
+    stmts: std.ArrayList(Stmt),
+};
+
 pub const Stmt = union(enum) {
-    expr: Expr,
-    empty: Empty,
+    var_decl: VarDecl,
+    block: Block,
     if_: If,
     while_: While,
     continue_: Continue,
     break_: Break,
     return_: Return,
+    empty: Empty,
+    expr: Expr,
+};
+
+pub const VarDecl = struct {
+    id: Identifier,
+    type_: Type,
+    init: Expr,
 };
 
 pub const If = struct {
@@ -48,6 +60,14 @@ pub const While = struct {
         return whileStmt;
     }
 };
+
+pub const Break = struct {};
+
+pub const Continue = struct {};
+
+pub const Empty = struct {};
+
+pub const Return = struct { expr: ?Expr };
 
 pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier, assign: Assign };
 
@@ -94,22 +114,12 @@ pub const Identifier = struct {
     name: []const u8,
 };
 
+pub const Type = union(enum) { built_in: Token.Type, id: Identifier };
+
 pub const Literal = union(enum) {
     number: f64,
     string: []const u8,
     boolean: bool,
     nullVal: void,
     undefinedVal: void,
-};
-
-pub const Break = struct {};
-
-pub const Continue = struct {};
-
-pub const Empty = struct {};
-
-pub const Return = struct { expr: ?Expr };
-
-pub const Program = struct {
-    statements: std.ArrayList(Stmt),
 };

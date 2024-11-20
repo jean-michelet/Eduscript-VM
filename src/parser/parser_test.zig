@@ -7,18 +7,53 @@ fn getNodes(allocator: std.mem.Allocator, source: []const u8) ![]Node.Stmt {
     var parser = Parser.init();
     const program = try parser.parse(allocator, source);
 
-    return program.statements.items;
+    return program.stmts.items;
 }
 
-test "Parse empty statement" {
+test "Parse var declaration statement" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const nodes = try getNodes(allocator, ";");
+    const nodes = try getNodes(allocator, "let a: number = 1;let b: IdentifierType = 1;");
+
+    try std.testing.expectEqual(2, nodes.len);
+    try std.testing.expectEqualStrings(nodes[0].var_decl.id.name, "a");
+    try std.testing.expectEqual(nodes[0].var_decl.init.literal.number, 1);
+    try std.testing.expectEqual(nodes[0].var_decl.type_.built_in, .number_type);
+
+    try std.testing.expectEqualStrings(nodes[1].var_decl.type_.id.name, "IdentifierType");
+}
+
+test "Parse if statement" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "if (true) { return; } if (true) return; else return;");
+
+    try std.testing.expectEqual(2, nodes.len);
+
+    const returnStmt = Node.Stmt{ .return_ = Node.Return{ .expr = null } };
+
+    const stmt = nodes[0].if_.consequent().?.block.stmts.items[0];
+    try std.testing.expectEqual(stmt, returnStmt);
+
+    try std.testing.expectEqual(nodes[0].if_.alternate(), null);
+
+    try std.testing.expectEqual(nodes[1].if_.alternate(), returnStmt);
+}
+
+test "Parse while statement" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "while (true) break;");
 
     try std.testing.expectEqual(1, nodes.len);
-    try std.testing.expectEqual(nodes[0], Node.Stmt{ .empty = Node.Empty{} });
+    try std.testing.expectEqual(nodes[0].while_.test_, Node.Expr{ .literal = Node.Literal{ .boolean = true } });
+    try std.testing.expectEqual(nodes[0].while_.body.*, Node.Stmt{ .break_ = Node.Break{} });
 }
 
 test "Parse jump statements" {
@@ -38,33 +73,15 @@ test "Parse jump statements" {
     try std.testing.expectEqual(nodes[3], Node.Stmt{ .return_ = Node.Return{ .expr = expr } });
 }
 
-test "Parse while statement" {
+test "Parse empty statement" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const nodes = try getNodes(allocator, "while (true) break;");
+    const nodes = try getNodes(allocator, ";");
 
     try std.testing.expectEqual(1, nodes.len);
-    try std.testing.expectEqual(nodes[0].while_.test_, Node.Expr{ .literal = Node.Literal{ .boolean = true } });
-    try std.testing.expectEqual(nodes[0].while_.body.*, Node.Stmt{ .break_ = Node.Break{} });
-}
-
-test "Parse if statement" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const nodes = try getNodes(allocator, "if (true) return; if (true) return; else return;");
-
-    try std.testing.expectEqual(2, nodes.len);
-    try std.testing.expectEqual(nodes[0].if_.test_, Node.Expr{ .literal = Node.Literal{ .boolean = true } });
-
-    const returnStmt = Node.Stmt{ .return_ = Node.Return{ .expr = null } };
-    try std.testing.expectEqual(nodes[0].if_.consequent(), returnStmt);
-    try std.testing.expectEqual(nodes[0].if_.alternate(), null);
-
-    try std.testing.expectEqual(nodes[1].if_.alternate(), returnStmt);
+    try std.testing.expectEqual(nodes[0], Node.Stmt{ .empty = Node.Empty{} });
 }
 
 test "Parse literal expressions" {
