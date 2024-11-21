@@ -37,6 +37,10 @@ pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const 
 }
 
 fn parseStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
+    if (self.match(.function)) {
+        return try self.parseFnDecl(arenaAllocator);
+    }
+
     if (self.match(.let)) {
         return try self.parseVarDecl(arenaAllocator);
     }
@@ -77,23 +81,40 @@ fn parseStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt
     return try self.parseExprStmt(arenaAllocator);
 }
 
+fn parseFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
+    try self.expectAndAvance(.function);
+
+    const id = try self.parseIdentifier(arenaAllocator);
+    try self.expectAndAvance(.left_paren);
+
+    var params = std.ArrayList(Node.Param).init(arenaAllocator);
+    while (self.current < self.tokens.len and self.peek().token_type != .eof) {
+        const paramId = try self.parseIdentifier(arenaAllocator);
+        try self.expectAndAvance(.colon);
+        const type_ = try self.parseType(arenaAllocator);
+
+        const param = Node.Param{ .id = paramId, .type_ = type_ };
+        try params.append(param);
+
+        if (self.peek().token_type == .right_paren) {
+            break;
+        } else {
+            try self.expectAndAvance(.comma);
+        }
+    }
+
+    try self.expectAndAvance(.right_paren);
+
+    return Node.Stmt{ .fn_decl = Node.FnDecl{ .id = id, .params = params, .body = try self.parseBlock(arenaAllocator) } };
+}
+
 fn parseVarDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
     try self.expectAndAvance(.let);
 
     const id = try self.parseIdentifier(arenaAllocator);
     try self.expectAndAvance(.colon);
 
-    var type_: ?Node.Type = null;
-    switch (self.peek().token_type) {
-        .void_type, .number_type, .string_type, .boolean_type => {
-            type_ = Node.Type{ .built_in = self.peek().token_type };
-            self.advance();
-        },
-        .identifier => {
-            type_ = Node.Type{ .id = try self.parseIdentifier(arenaAllocator) };
-        },
-        else => return Errors.UnexpectedToken,
-    }
+    const type_ = try self.parseTypeOrNull(arenaAllocator);
 
     try self.expectAndAvance(.assign);
 
@@ -105,19 +126,23 @@ fn parseVarDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.S
 }
 
 fn parseBlockStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
+    return Node.Stmt{ .block = try self.parseBlock(arenaAllocator) };
+}
+
+fn parseBlock(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Block {
     try self.expectAndAvance(.left_curly_brace);
 
-    var blockStmt = Node.Block{
+    var block = Node.Block{
         .stmts = std.ArrayList(Node.Stmt).init(arenaAllocator),
     };
 
     while (self.current < self.tokens.len and self.peek().token_type != .eof and self.peek().token_type != .right_curly_brace) {
         const stmt = try self.parseStmt(arenaAllocator);
-        try blockStmt.stmts.append(stmt);
+        try block.stmts.append(stmt);
     }
     try self.expectAndAvance(.right_curly_brace);
 
-    return Node.Stmt{ .block = blockStmt };
+    return block;
 }
 
 fn parseIfStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
@@ -253,6 +278,26 @@ fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!No
     }
 
     return Errors.UnexpectedToken;
+}
+
+fn parseType(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Type {
+    return try self.parseTypeOrNull(arenaAllocator) orelse unreachable;
+}
+
+fn parseTypeOrNull(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?Node.Type {
+    var type_: ?Node.Type = null;
+    switch (self.peek().token_type) {
+        .void_type, .number_type, .string_type, .boolean_type => {
+            type_ = Node.Type{ .built_in = self.peek().token_type };
+            self.advance();
+        },
+        .identifier => {
+            type_ = Node.Type{ .id = try self.parseIdentifier(arenaAllocator) };
+        },
+        else => return Errors.UnexpectedToken,
+    }
+
+    return type_;
 }
 
 fn parseIdentifier(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Identifier {

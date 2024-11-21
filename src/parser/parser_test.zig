@@ -10,6 +10,30 @@ fn getNodes(allocator: std.mem.Allocator, source: []const u8) ![]Node.Stmt {
     return program.stmts.items;
 }
 
+test "Parse function declaration statement" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "function foo(a: boolean) { return; } function bar(a: boolean, b: number) { return; }");
+
+    try std.testing.expectEqual(2, nodes.len);
+    try std.testing.expectEqualStrings(nodes[0].fn_decl.id.name, "foo");
+
+    const blockStmts = nodes[0].fn_decl.body.stmts.items;
+    try std.testing.expectEqual(1, blockStmts.len);
+    try std.testing.expectEqual(Node.Return{ .expr = null }, blockStmts[0].return_);
+
+    const params = nodes[0].fn_decl.params.items;
+    try std.testing.expectEqual(1, params.len);
+    try std.testing.expectEqualStrings(params[0].id.name, "a");
+
+    const params2 = nodes[1].fn_decl.params.items;
+    try std.testing.expectEqual(2, params2.len);
+    try std.testing.expectEqualStrings(params2[0].id.name, "a");
+    try std.testing.expectEqualStrings(params2[1].id.name, "b");
+}
+
 test "Parse var declaration statement" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();

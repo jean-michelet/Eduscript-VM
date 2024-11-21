@@ -6,6 +6,7 @@ pub const Block = struct {
 };
 
 pub const Stmt = union(enum) {
+    fn_decl: FnDecl,
     var_decl: VarDecl,
     block: Block,
     if_: If,
@@ -15,6 +16,12 @@ pub const Stmt = union(enum) {
     return_: Return,
     empty: Empty,
     expr: Expr,
+};
+
+pub const FnDecl = struct {
+    id: Identifier,
+    params: std.ArrayList(Param),
+    body: Block,
 };
 
 pub const VarDecl = struct {
@@ -113,6 +120,8 @@ pub const Binary = struct {
 pub const Identifier = struct {
     name: []const u8,
 };
+
+pub const Param = struct { id: Identifier, type_: Type };
 
 pub const Type = union(enum) { built_in: Token.Type, id: Identifier };
 
