@@ -36,7 +36,7 @@ test "skip comments" {
         token.token_type,
     );
     try std.testing.expectEqual(3, token.line);
-    try std.testing.expectEqual(token.pos, source.len);
+    try std.testing.expectEqual(source.len, token.pos);
 }
 
 test "skip whitespace" {
@@ -49,7 +49,7 @@ test "skip whitespace" {
     const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
-    try std.testing.expectEqual(token.pos, source.len - 2);
+    try std.testing.expectEqual(source.len - 2, token.pos);
 }
 
 test "track current line number" {
@@ -62,7 +62,7 @@ test "track current line number" {
     const tokens = try scanner.scanTokens(allocator);
     const token = tokens.items[0];
 
-    try std.testing.expectEqual(token.line, 3);
+    try std.testing.expectEqual(3, token.line);
 }
 
 test "error on invalid token" {
@@ -167,8 +167,8 @@ test "string literal" {
     const token = tokens.items[0];
 
     try std.testing.expectEqual(token.token_type, Token.Type.string_literal);
-    try std.testing.expect(std.mem.eql(u8, token.lexeme, "Hello world"));
-    try std.testing.expect(std.mem.eql(u8, token.literal.?.string, "Hello world"));
+    try std.testing.expectEqualStrings("\"Hello world\"", token.lexeme);
+    try std.testing.expectEqualStrings("Hello world", token.literal.?.string);
 }
 
 test "number literal" {
@@ -181,8 +181,8 @@ test "number literal" {
     const token = tokens.items[0];
 
     try std.testing.expectEqual(token.token_type, Token.Type.number_literal);
-    try std.testing.expect(std.mem.eql(u8, token.lexeme, "123"));
-    try std.testing.expectEqual(token.literal.?.number, 123);
+    try std.testing.expectEqualStrings("123", token.lexeme);
+    try std.testing.expectEqual(123, token.literal.?.number);
 }
 
 test "boolean literals" {
@@ -193,8 +193,8 @@ test "boolean literals" {
     var scanner = Scanner.init(allocator, "true false");
     const tokens = try scanner.scanTokens(allocator);
 
-    try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
-    try std.testing.expect(std.mem.eql(u8, tokens.items[0].lexeme, "true"));
+    try std.testing.expectEqual(.boolean_literal, tokens.items[0].token_type);
+    try std.testing.expectEqualStrings("true", tokens.items[0].lexeme);
     try std.testing.expect(tokens.items[0].literal.?.boolean);
 }
 
@@ -205,8 +205,8 @@ test "scan symbols and literals" {
 
     var scanner = Scanner.init(allocator, "true+1;");
     const tokens = try scanner.scanTokens(allocator);
-    try std.testing.expectEqual(tokens.items[0].token_type, Token.Type.boolean_literal);
-    try std.testing.expectEqual(tokens.items[1].token_type, Token.Type.plus);
-    try std.testing.expectEqual(tokens.items[2].token_type, Token.Type.number_literal);
-    try std.testing.expectEqual(tokens.items[3].token_type, Token.Type.semicolon);
+    try std.testing.expectEqual(.boolean_literal, tokens.items[0].token_type);
+    try std.testing.expectEqual(.plus, tokens.items[1].token_type);
+    try std.testing.expectEqual(.number_literal, tokens.items[2].token_type);
+    try std.testing.expectEqual(.semicolon, tokens.items[3].token_type);
 }

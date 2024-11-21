@@ -189,11 +189,11 @@ fn scanString(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!void {
         return Errors.UnterminatedString;
     }
 
-    const lexeme = self.source[start..self.pos];
-    const lexemeCopy = try arenaAllocator.dupe(u8, lexeme);
+    const stringValue = try arenaAllocator.dupe(u8, self.source[start..self.pos]);
+    const lexemeCopy = try arenaAllocator.dupe(u8, self.source[(start - 1)..(self.pos + 1)]);
     self.advance(); // Skip the closing quote
 
-    try self.addToken(.string_literal, lexeme, Token.LiteralValue{ .string = lexemeCopy });
+    try self.addToken(.string_literal, lexemeCopy, Token.LiteralValue{ .string = stringValue });
 }
 
 fn isEOF(self: *@This()) bool {
