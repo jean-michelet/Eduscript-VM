@@ -37,48 +37,29 @@ pub fn parse(self: *@This(), arenaAllocator: std.mem.Allocator, source: []const 
 }
 
 fn parseStmt(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
-    if (self.match(.function)) {
-        return try self.parseFnDecl(arenaAllocator);
-    }
-
-    if (self.match(.let)) {
-        return try self.parseVarDecl(arenaAllocator);
-    }
-
-    if (self.match(.left_curly_brace)) {
-        return try self.parseBlockStmt(arenaAllocator);
-    }
-
-    if (self.match(.if_)) {
-        return try self.parseIfStmt(arenaAllocator);
-    }
-
-    if (self.match(.while_)) {
-        return self.parseWhileStmt(arenaAllocator);
-    }
-
-    if (self.match(.semicolon)) {
-        self.advance();
-        return Node.Stmt{ .empty = Node.Empty{} };
-    }
-
-    if (self.match(.continue_)) {
-        self.advance();
-        try self.expectAndAvance(.semicolon);
-        return Node.Stmt{ .continue_ = Node.Continue{} };
-    }
-
-    if (self.match(.break_)) {
-        self.advance();
-        try self.expectAndAvance(.semicolon);
-        return Node.Stmt{ .break_ = Node.Break{} };
-    }
-
-    if (self.match(.return_)) {
-        return try self.parseReturnStmt(arenaAllocator);
-    }
-
-    return try self.parseExprStmt(arenaAllocator);
+    return switch (self.peek().token_type) {
+        .function => try self.parseFnDecl(arenaAllocator),
+        .let => try self.parseVarDecl(arenaAllocator),
+        .left_curly_brace => try self.parseBlockStmt(arenaAllocator),
+        .if_ => try self.parseIfStmt(arenaAllocator),
+        .while_ => self.parseWhileStmt(arenaAllocator),
+        .semicolon => {
+            self.advance();
+            return Node.Stmt{ .empty = Node.Empty{} };
+        },
+        .continue_ => {
+            self.advance();
+            try self.expectAndAvance(.semicolon);
+            return Node.Stmt{ .continue_ = Node.Continue{} };
+        },
+        .break_ => {
+            self.advance();
+            try self.expectAndAvance(.semicolon);
+            return Node.Stmt{ .break_ = Node.Break{} };
+        },
+        .return_ => try self.parseReturnStmt(arenaAllocator),
+        else => try self.parseExprStmt(arenaAllocator),
+    };
 }
 
 fn parseFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
@@ -223,61 +204,47 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
 }
 
 fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Expr {
-    if (self.match(.identifier)) {
-        return Node.Expr{ .identifier = try self.parseIdentifier(arenaAllocator) };
-    }
-
-    if (self.match(.left_paren)) {
-        // Handle parenthesized expression
-        return self.parseParenthizedExpr(arenaAllocator);
-    }
-
-    if (self.match(.number_literal)) {
-        // Handle number literal
-        const token = try self.consume(.number_literal);
-        return Node.Expr{
-            .literal = Node.Literal{
-                .number = token.literal.?.number,
-            },
-        };
-    }
-
-    if (self.match(.string_literal)) {
-        // Handle string literal
-        const token = try self.consume(.string_literal);
-
-        const value = try arenaAllocator.dupe(u8, token.literal.?.string);
-        return Node.Expr{
-            .literal = Node.Literal{ .string = value },
-        };
-    }
-
-    if (self.match(.boolean_literal)) {
-        // Handle boolean literal
-        const token = try self.consume(.boolean_literal);
-        const bool_value = token.literal.?.boolean;
-        return Node.Expr{
-            .literal = Node.Literal{ .boolean = bool_value },
-        };
-    }
-
-    if (self.match(.null_literal)) {
-        // Handle null literal
-        self.advance();
-        return Node.Expr{
-            .literal = Node.Literal{ .nullVal = {} },
-        };
-    }
-
-    if (self.match(.undefined_literal)) {
-        // Handle undefined literal
-        self.advance();
-        return Node.Expr{
-            .literal = Node.Literal{ .undefinedVal = {} },
-        };
-    }
-
-    return Errors.UnexpectedToken;
+    return switch (self.peek().token_type) {
+        .identifier => Node.Expr{ .identifier = try self.parseIdentifier(arenaAllocator) },
+        .left_paren => {
+            return self.parseParenthizedExpr(arenaAllocator);
+        },
+        .number_literal => {
+            const token = try self.consume(.number_literal);
+            return Node.Expr{
+                .literal = Node.Literal{
+                    .number = token.literal.?.number,
+                },
+            };
+        },
+        .string_literal => {
+            const token = try self.consume(.string_literal);
+            const value = try arenaAllocator.dupe(u8, token.literal.?.string);
+            return Node.Expr{
+                .literal = Node.Literal{ .string = value },
+            };
+        },
+        .boolean_literal => {
+            const token = try self.consume(.boolean_literal);
+            const bool_value = token.literal.?.boolean;
+            return Node.Expr{
+                .literal = Node.Literal{ .boolean = bool_value },
+            };
+        },
+        .null_literal => {
+            self.advance();
+            return Node.Expr{
+                .literal = Node.Literal{ .nullVal = {} },
+            };
+        },
+        .undefined_literal => {
+            self.advance();
+            return Node.Expr{
+                .literal = Node.Literal{ .undefinedVal = {} },
+            };
+        },
+        else => Errors.UnexpectedToken,
+    };
 }
 
 fn parseType(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Type {
