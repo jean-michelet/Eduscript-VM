@@ -18,20 +18,20 @@ test "Parse function declaration statement" {
     const nodes = try getNodes(allocator, "function foo(a: boolean) { return; } function bar(a: boolean, b: number) { return; }");
 
     try std.testing.expectEqual(2, nodes.len);
-    try std.testing.expectEqualStrings(nodes[0].fn_decl.id.name, "foo");
+    try std.testing.expectEqualStrings("foo", nodes[0].fn_decl.id.name);
 
     const blockStmts = nodes[0].fn_decl.body.stmts.items;
     try std.testing.expectEqual(1, blockStmts.len);
-    try std.testing.expectEqual(Node.Return{ .expr = null }, blockStmts[0].return_);
+    try std.testing.expectEqual(null, blockStmts[0].return_.expr);
 
     const params = nodes[0].fn_decl.params.items;
     try std.testing.expectEqual(1, params.len);
-    try std.testing.expectEqualStrings(params[0].id.name, "a");
+    try std.testing.expectEqualStrings("a", params[0].id.name);
 
     const params2 = nodes[1].fn_decl.params.items;
     try std.testing.expectEqual(2, params2.len);
-    try std.testing.expectEqualStrings(params2[0].id.name, "a");
-    try std.testing.expectEqualStrings(params2[1].id.name, "b");
+    try std.testing.expectEqualStrings("a", params2[0].id.name);
+    try std.testing.expectEqualStrings("b", params2[1].id.name);
 }
 
 test "Parse var declaration statement" {
@@ -42,11 +42,11 @@ test "Parse var declaration statement" {
     const nodes = try getNodes(allocator, "let a: number = 1;let b: IdentifierType = 1;");
 
     try std.testing.expectEqual(2, nodes.len);
-    try std.testing.expectEqualStrings(nodes[0].var_decl.id.name, "a");
-    try std.testing.expectEqual(nodes[0].var_decl.init.literal.number, 1);
-    try std.testing.expectEqual(nodes[0].var_decl.type_.built_in, .number_type);
+    try std.testing.expectEqualStrings("a", nodes[0].var_decl.id.name);
+    try std.testing.expectEqual(1, nodes[0].var_decl.init.literal.number);
+    try std.testing.expectEqual(.number_type, nodes[0].var_decl.type_.built_in);
 
-    try std.testing.expectEqualStrings(nodes[1].var_decl.type_.id.name, "IdentifierType");
+    try std.testing.expectEqualStrings("IdentifierType", nodes[1].var_decl.type_.id.name);
 }
 
 test "Parse if statement" {
@@ -58,14 +58,11 @@ test "Parse if statement" {
 
     try std.testing.expectEqual(2, nodes.len);
 
-    const returnStmt = Node.Stmt{ .return_ = Node.Return{ .expr = null } };
-
     const stmt = nodes[0].if_.consequent().?.block.stmts.items[0];
-    try std.testing.expectEqual(stmt, returnStmt);
+    try std.testing.expectEqual(null, stmt.return_.expr);
+    try std.testing.expectEqual(null, nodes[0].if_.alternate());
 
-    try std.testing.expectEqual(nodes[0].if_.alternate(), null);
-
-    try std.testing.expectEqual(nodes[1].if_.alternate(), returnStmt);
+    try std.testing.expectEqual(null, nodes[1].if_.alternate().?.return_.expr);
 }
 
 test "Parse while statement" {
@@ -76,8 +73,8 @@ test "Parse while statement" {
     const nodes = try getNodes(allocator, "while (true) break;");
 
     try std.testing.expectEqual(1, nodes.len);
-    try std.testing.expectEqual(nodes[0].while_.test_, Node.Expr{ .literal = Node.Literal{ .boolean = true } });
-    try std.testing.expectEqual(nodes[0].while_.body.*, Node.Stmt{ .break_ = Node.Break{} });
+    try std.testing.expect(nodes[0].while_.test_.literal.boolean);
+    try std.testing.expectEqual(Node.Break{}, nodes[0].while_.body.*.break_);
 }
 
 test "Parse jump statements" {
@@ -88,13 +85,10 @@ test "Parse jump statements" {
     const nodes = try getNodes(allocator, "continue;break;return;return 1;");
 
     try std.testing.expectEqual(4, nodes.len);
-    try std.testing.expectEqual(nodes[0], Node.Stmt{ .continue_ = Node.Continue{} });
-    try std.testing.expectEqual(nodes[1], Node.Stmt{ .break_ = Node.Break{} });
-
-    try std.testing.expectEqual(nodes[2], Node.Stmt{ .return_ = Node.Return{ .expr = null } });
-
-    const expr = Node.Expr{ .literal = Node.Literal{ .number = 1 } };
-    try std.testing.expectEqual(nodes[3], Node.Stmt{ .return_ = Node.Return{ .expr = expr } });
+    try std.testing.expectEqual(Node.Continue{}, nodes[0].continue_);
+    try std.testing.expectEqual(Node.Break{}, nodes[1].break_);
+    try std.testing.expectEqual(null, nodes[2].return_.expr);
+    try std.testing.expectEqual(1, nodes[3].return_.expr.?.literal.number);
 }
 
 test "Parse empty statement" {
@@ -105,7 +99,7 @@ test "Parse empty statement" {
     const nodes = try getNodes(allocator, ";");
 
     try std.testing.expectEqual(1, nodes.len);
-    try std.testing.expectEqual(nodes[0], Node.Stmt{ .empty = Node.Empty{} });
+    try std.testing.expectEqual(Node.Empty{}, nodes[0].empty);
 }
 
 test "Parse literal expressions" {
@@ -116,11 +110,11 @@ test "Parse literal expressions" {
     const nodes = try getNodes(allocator, "1;\"hi\";true;undefined;null;");
 
     try std.testing.expectEqual(5, nodes.len);
-    try std.testing.expectEqual(nodes[0].expr.literal.number, 1);
-    try std.testing.expectEqualStrings(nodes[1].expr.literal.string, "hi");
+    try std.testing.expectEqual(1, nodes[0].expr.literal.number);
+    try std.testing.expectEqualStrings("hi", nodes[1].expr.literal.string);
     try std.testing.expect(nodes[2].expr.literal.boolean);
-    try std.testing.expectEqual(nodes[3].expr.literal.undefinedVal, {});
-    try std.testing.expectEqual(nodes[4].expr.literal.nullVal, {});
+    try std.testing.expectEqual({}, nodes[3].expr.literal.undefinedVal);
+    try std.testing.expectEqual({}, nodes[4].expr.literal.nullVal);
 }
 
 test "Parse identifier" {
@@ -131,7 +125,7 @@ test "Parse identifier" {
     const nodes = try getNodes(allocator, "letter;");
 
     try std.testing.expectEqual(1, nodes.len);
-    try std.testing.expectEqualStrings(nodes[0].expr.identifier.name, "letter");
+    try std.testing.expectEqualStrings("letter", nodes[0].expr.identifier.name);
 }
 
 test "Parse assignment" {
@@ -142,9 +136,9 @@ test "Parse assignment" {
     const nodes = try getNodes(allocator, "a = 2;");
 
     try std.testing.expectEqual(1, nodes.len);
-    try std.testing.expectEqualStrings(nodes[0].expr.assign.id.name, "a");
-    try std.testing.expectEqual(nodes[0].expr.assign.right.*, Node.Expr{ .literal = Node.Literal{ .number = 2 } });
-    try std.testing.expectEqual(nodes[0].expr.assign.op, .assign);
+    try std.testing.expectEqualStrings("a", nodes[0].expr.assign.id.name);
+    try std.testing.expectEqual(2, nodes[0].expr.assign.right.*.literal.number);
+    try std.testing.expectEqual(.assign, nodes[0].expr.assign.op);
 }
 
 test "Parse simple binary expressions" {
@@ -217,8 +211,8 @@ fn testRightNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, t
     const binary = nodes[0].expr.binary;
 
     // The operator with less precedence
-    try std.testing.expectEqual(binary.op, topOp);
-    try std.testing.expectEqual(binary.left().literal.number, 1);
+    try std.testing.expectEqual(topOp, binary.op);
+    try std.testing.expectEqual(1, binary.left().literal.number);
 
     try testBinaryExpr(binary.right().binary, nestedOp, 2, 3);
 }
@@ -231,8 +225,8 @@ fn testLeftNestedBinaryExpr(allocator: std.mem.Allocator, source: []const u8, to
     const binary = nodes[0].expr.binary;
 
     // The operator with less precedence
-    try std.testing.expectEqual(binary.op, topOp);
-    try std.testing.expectEqual(binary.right().literal.number, 1);
+    try std.testing.expectEqual(topOp, binary.op);
+    try std.testing.expectEqual(1, binary.right().literal.number);
 
     try testBinaryExpr(binary.left().binary, nestedOp, 2, 3);
 }
