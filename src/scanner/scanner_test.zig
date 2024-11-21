@@ -12,7 +12,7 @@ fn testScanToken(allocator: std.mem.Allocator, source: []const u8, expected_type
         expected_type,
         token.token_type,
     );
-    try std.testing.expect(std.mem.eql(u8, expected_lexeme, token.lexeme));
+    try std.testing.expectEqualStrings(expected_lexeme, token.lexeme);
     try std.testing.expectEqual(1, token.line);
     try std.testing.expectEqual(0, token.pos);
 }
