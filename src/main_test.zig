@@ -5,6 +5,8 @@ test "main_test" {
 }
 
 test "run scanner tests" {
+    _ = @import("errors.zig");
+
     _ = @import("scanner/scanner_test.zig");
     _ = @import("parser/parser_test.zig");
 }

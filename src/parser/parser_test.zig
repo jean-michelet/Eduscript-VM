@@ -4,10 +4,46 @@ const Node = @import("node.zig");
 const Token = @import("../scanner/token.zig");
 
 fn getNodes(allocator: std.mem.Allocator, source: []const u8) ![]Node.Stmt {
-    var parser = Parser.init();
+    var parser = Parser.init(allocator);
     const program = try parser.parse(allocator, source);
 
     return program.stmts.items;
+}
+
+test "Handle unexpected tokens errors in 'parsePrimaryExpr'" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var parser = Parser.init(allocator);
+    const program = parser.parse(allocator, "1 + ;");
+
+    try std.testing.expectError(Parser.Errors.UnexpectedToken, program);
+    try std.testing.expectEqualStrings("Unexpected token 'semicolon'.", parser.errors.messages.pop());
+}
+
+test "Handle unexpected tokens errors in 'parseTypeOrNull'" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var parser = Parser.init(allocator);
+    const program = parser.parse(allocator, "function foo(a: 1");
+
+    try std.testing.expectError(Parser.Errors.UnexpectedToken, program);
+    try std.testing.expectEqualStrings("Unexpected token 'number_literal'.", parser.errors.messages.pop());
+}
+
+test "Handle unexpected tokens errors in 'expect'" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var parser = Parser.init(allocator);
+    const program = parser.parse(allocator, "if while");
+
+    try std.testing.expectError(Parser.Errors.UnexpectedToken, program);
+    try std.testing.expectEqualStrings("Expected token 'left_parenthesis', given 'while_keyword'.", parser.errors.messages.pop());
 }
 
 test "Parse function declaration statement" {

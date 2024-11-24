@@ -1,8 +1,10 @@
 const std = @import("std");
 const Token = @import("./token.zig");
+const ErrorAccumulator = @import("../errors.zig");
 
 pub const Errors = error{ UnexpectedToken, UnterminatedString } || error{ OutOfMemory, InvalidCharacter };
 
+errors: ErrorAccumulator,
 source: []const u8,
 tokens: std.ArrayList(Token),
 line: usize,
@@ -10,13 +12,7 @@ startPos: usize,
 pos: usize,
 
 pub fn init(arenaAllocator: std.mem.Allocator, source: []const u8) @This() {
-    return @This(){
-        .source = source,
-        .tokens = std.ArrayList(Token).init(arenaAllocator),
-        .line = 1,
-        .startPos = 0,
-        .pos = 0,
-    };
+    return @This(){ .source = source, .tokens = std.ArrayList(Token).init(arenaAllocator), .line = 1, .startPos = 0, .pos = 0, .errors = ErrorAccumulator.init(arenaAllocator) };
 }
 
 pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.ArrayList(Token) {
@@ -79,7 +75,10 @@ pub fn scanTokens(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!std.
             'a'...'z', 'A'...'Z', '_' => try self.scanIdentifierOrKeyword(),
             // Handle strings
             '"' => try self.scanString(arenaAllocator),
-            else => return Errors.UnexpectedToken,
+            else => {
+                try self.errors.add(arenaAllocator, "Unexpected token '{c}'.", .{c});
+                return Errors.UnexpectedToken;
+            },
         }
     }
 

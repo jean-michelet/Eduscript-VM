@@ -72,6 +72,8 @@ test "error on invalid token" {
     const source = "@";
     var scanner = Scanner.init(allocator, source);
     try std.testing.expectError(Scanner.Errors.UnexpectedToken, scanner.scanTokens(allocator));
+    try std.testing.expectEqual(scanner.errors.messages.items.len, 1);
+    try std.testing.expectEqualStrings(scanner.errors.messages.pop(), "Unexpected token '@'.");
 }
 
 test "single-character and symbol tokens" {
