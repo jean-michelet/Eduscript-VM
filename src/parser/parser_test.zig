@@ -5,7 +5,10 @@ const Token = @import("../scanner/token.zig");
 
 fn getNodes(allocator: std.mem.Allocator, source: []const u8) ![]Node.Stmt {
     var parser = Parser.init(allocator);
-    const program = try parser.parse(allocator, source);
+    const program = parser.parse(allocator, source) catch |err| {
+        parser.errors.dump();
+        return err;
+    };
 
     return program.stmts.items;
 }
@@ -136,6 +139,30 @@ test "Parse empty statement" {
 
     try std.testing.expectEqual(1, nodes.len);
     try std.testing.expectEqual(Node.Empty{}, nodes[0].empty);
+}
+
+test "Parse function call expressions" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nodes = try getNodes(allocator, "foo(1, true,); bar();");
+
+    try std.testing.expectEqual(2, nodes.len);
+
+    const fnCall1 = nodes[0].expr.fn_call;
+    try std.testing.expectEqualStrings("foo", fnCall1.callee.name);
+
+    const args1 = fnCall1.args.items;
+    try std.testing.expectEqual(2, args1.len);
+    try std.testing.expectEqual(1, args1[0].literal.number);
+    try std.testing.expect(args1[1].literal.boolean);
+
+    const fnCall2 = nodes[1].expr.fn_call;
+    try std.testing.expectEqualStrings("bar", fnCall2.callee.name);
+
+    const args2 = fnCall2.args.items;
+    try std.testing.expectEqual(0, args2.len);
 }
 
 test "Parse literal expressions" {

@@ -205,7 +205,14 @@ fn parseExpr(self: *@This(), arenaAllocator: std.mem.Allocator, min_precedence: 
 
 fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Expr {
     return switch (self.peek().token_type) {
-        .identifier => Node.Expr{ .identifier = try self.parseIdentifier(arenaAllocator) },
+        .identifier => {
+            const id = try self.parseIdentifier(arenaAllocator);
+            if (self.peek().token_type == .left_paren) {
+                return try self.parseFnCall(arenaAllocator, id);
+            }
+
+            return Node.Expr{ .identifier = id };
+        },
         .left_paren => {
             return self.parseParenthizedExpr(arenaAllocator);
         },
@@ -246,6 +253,30 @@ fn parsePrimaryExpr(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!No
         else => {
             try self.errors.add(arenaAllocator, "Unexpected token '{s}'.", .{Token.tokenTypeToString(self.peek().token_type)});
             return Errors.UnexpectedToken;
+        },
+    };
+}
+
+fn parseFnCall(self: *@This(), arenaAllocator: std.mem.Allocator, callee: Node.Identifier) Errors!Node.Expr {
+    try self.expectAndAvance(arenaAllocator, .left_paren);
+
+    var args = std.ArrayList(Node.Expr).init(arenaAllocator);
+    while (self.current < self.tokens.len and self.peek().token_type != .right_paren) {
+        const arg = try self.parseExpr(arenaAllocator, 0);
+        try args.append(arg);
+
+        if (self.peek().token_type == .right_paren) {
+            break;
+        }
+        try self.expectAndAvance(arenaAllocator, .comma);
+    }
+
+    try self.expectAndAvance(arenaAllocator, .right_paren);
+
+    return Node.Expr{
+        .fn_call = Node.FnCall{
+            .callee = callee,
+            .args = args,
         },
     };
 }

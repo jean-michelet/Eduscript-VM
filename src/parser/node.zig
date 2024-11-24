@@ -76,7 +76,12 @@ pub const Empty = struct {};
 
 pub const Return = struct { expr: ?Expr };
 
-pub const Expr = union(enum) { binary: Binary, literal: Literal, identifier: Identifier, assign: Assign };
+pub const Expr = union(enum) { fn_call: FnCall, binary: Binary, literal: Literal, identifier: Identifier, assign: Assign };
+
+pub const FnCall = struct {
+    callee: Identifier,
+    args: std.ArrayList(Expr),
+};
 
 pub const Assign = struct {
     id: Identifier,
