@@ -38,8 +38,8 @@ expression_statement = expression ";" ;
 
 expression = assignment ;
 
-assignment = identifier "=" expression
-           | additive ;
+assignment = identifier "=" assignment
+           | additive;
 
 additive = multiplicative { ( "+" | "-" ) multiplicative } ;
 
@@ -47,11 +47,15 @@ multiplicative = primary { ( "*" | "/" ) primary } ;
 
 primary = "(" expression ")"
         | identifier
+        | function_call
         | number_literal
         | string_literal
         | boolean_literal
         | null_literal
         | undefined_literal ;
+
+function_call = identifier "(" [argument_list] ")"
+argument_list = expression { "," expression };
 
 identifier = /[a-zA-Z_][a-zA-Z0-9_]*/ ;
 number_literal = /\d+(\.\d+)?/ ;
