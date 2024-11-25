@@ -1,5 +1,6 @@
 const std = @import("std");
 const Token = @import("../scanner/token.zig");
+const Checker = @import("../semantics/checker.zig");
 
 pub const Block = struct {
     stmts: std.ArrayList(Stmt),
@@ -18,11 +19,7 @@ pub const Stmt = union(enum) {
     expr: Expr,
 };
 
-pub const FnDecl = struct {
-    id: Identifier,
-    params: std.ArrayList(Param),
-    body: Block,
-};
+pub const FnDecl = struct { id: Identifier, params: std.ArrayList(Param), body: Block, returnType: Type };
 
 pub const VarDecl = struct {
     id: Identifier,
@@ -128,7 +125,7 @@ pub const Identifier = struct {
 
 pub const Param = struct { id: Identifier, type_: Type };
 
-pub const Type = union(enum) { built_in: Token.Type, id: Identifier };
+pub const Type = union(enum) { built_in: Checker.BuiltinType, id: Identifier };
 
 pub const Literal = union(enum) {
     number: f64,

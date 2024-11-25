@@ -2,6 +2,7 @@ const std = @import("std");
 const Parser = @import("parser.zig");
 const Node = @import("node.zig");
 const Token = @import("../scanner/token.zig");
+const Checker = @import("../semantics/checker.zig");
 
 fn getNodes(allocator: std.mem.Allocator, source: []const u8) ![]Node.Stmt {
     var parser = Parser.init(allocator);
@@ -54,10 +55,11 @@ test "Parse function declaration statement" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const nodes = try getNodes(allocator, "function foo(a: boolean) { return; } function bar(a: boolean, b: number) { return; }");
+    const nodes = try getNodes(allocator, "function foo(a: boolean): void { return; } function bar(a: boolean, b: number): void { return; }");
 
     try std.testing.expectEqual(2, nodes.len);
     try std.testing.expectEqualStrings("foo", nodes[0].fn_decl.id.name);
+    try std.testing.expectEqual(Checker.BuiltinType.Void, nodes[0].fn_decl.returnType.built_in);
 
     const blockStmts = nodes[0].fn_decl.body.stmts.items;
     try std.testing.expectEqual(1, blockStmts.len);
@@ -83,7 +85,7 @@ test "Parse var declaration statement" {
     try std.testing.expectEqual(2, nodes.len);
     try std.testing.expectEqualStrings("a", nodes[0].var_decl.id.name);
     try std.testing.expectEqual(1, nodes[0].var_decl.init.literal.number);
-    try std.testing.expectEqual(.number_type, nodes[0].var_decl.type_.built_in);
+    try std.testing.expectEqual(Checker.BuiltinType.Number, nodes[0].var_decl.type_.built_in);
 
     try std.testing.expectEqualStrings("IdentifierType", nodes[1].var_decl.type_.id.name);
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const Token = @import("../scanner/token.zig");
 const Scanner = @import("../scanner/scanner.zig");
 const Node = @import("node.zig");
+const Checker = @import("../semantics/checker.zig");
 
 const ErrorAccumulator = @import("../errors.zig");
 
@@ -69,7 +70,7 @@ fn parseFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.St
     try self.expectAndAvance(arenaAllocator, .left_paren);
 
     var params = std.ArrayList(Node.Param).init(arenaAllocator);
-    while (self.current < self.tokens.len and self.peek().token_type != .eof) {
+    while (self.current < self.tokens.len and self.peek().token_type != .eof and self.peek().token_type != .right_paren) {
         const paramId = try self.parseIdentifier(arenaAllocator);
         try self.expectAndAvance(arenaAllocator, .colon);
         const type_ = try self.parseType(arenaAllocator);
@@ -77,16 +78,18 @@ fn parseFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.St
         const param = Node.Param{ .id = paramId, .type_ = type_ };
         try params.append(param);
 
-        if (self.peek().token_type == .right_paren) {
-            break;
-        } else {
+        if (self.peek().token_type != .right_paren) {
             try self.expectAndAvance(arenaAllocator, .comma);
         }
     }
 
     try self.expectAndAvance(arenaAllocator, .right_paren);
 
-    return Node.Stmt{ .fn_decl = Node.FnDecl{ .id = id, .params = params, .body = try self.parseBlock(arenaAllocator) } };
+    try self.expectAndAvance(arenaAllocator, .colon);
+
+    const returnType = try self.parseType(arenaAllocator);
+
+    return Node.Stmt{ .fn_decl = Node.FnDecl{ .id = id, .params = params, .body = try self.parseBlock(arenaAllocator), .returnType = returnType } };
 }
 
 fn parseVarDecl(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Stmt {
@@ -288,8 +291,8 @@ fn parseType(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!Node.Type
 fn parseTypeOrNull(self: *@This(), arenaAllocator: std.mem.Allocator) Errors!?Node.Type {
     var type_: ?Node.Type = null;
     switch (self.peek().token_type) {
-        .void_type, .number_type, .string_type, .boolean_type => {
-            type_ = Node.Type{ .built_in = self.peek().token_type };
+        .void_type, .number_type, .string_type, .boolean_type, .null_literal, .undefined_literal => {
+            type_ = Node.Type{ .built_in = try typeFromToken(self.peek().token_type) };
             self.advance();
         },
         .identifier => {
@@ -326,6 +329,18 @@ fn getPrecedence(_: *@This(), token_type: Token.Type) usize {
         .star, .slash => return 12,
         else => return 0,
     }
+}
+
+fn typeFromToken(token_type: Token.Type) !Checker.BuiltinType {
+    return switch (token_type) {
+        .void_type => .Void,
+        .number_type => .Number,
+        .boolean_type => .Boolean,
+        .string_type => .String,
+        .null_literal => .Null,
+        .undefined_literal => .Undefined,
+        else => Errors.UnexpectedToken,
+    };
 }
 
 fn consume(self: *@This(), arenaAllocator: std.mem.Allocator, token_type: Token.Type) Errors!Token {
