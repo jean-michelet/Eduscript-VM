@@ -12,6 +12,7 @@ pub const SemanticError = error{
     UndeclaredIdentifierType,
     UndeclaredIdentifierValue,
     UndeclaredFunction,
+    InvalidArity,
     TypeMismatch,
 } || error{OutOfMemory};
 
@@ -57,9 +58,7 @@ pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt,
                 alt = try self.check(arenaAllocator, altStmt, scope, contextStack);
             }
 
-            if (alt.built_in != cons.built_in) {
-                return SemanticError.TypeMismatch;
-            }
+            // TODO: check branches
 
             return alt;
         },
@@ -182,6 +181,9 @@ fn checkExpr(self: *@This(), arenaAllocator: std.mem.Allocator, expr: Node.Expr,
         .fn_call => |fnCall| {
             const symbol = try scope.get(fnCall.callee.name);
             const paramTypes = symbol.valueType.?.function.paramTypes.items;
+
+            try checkArity(fnCall.args.items.len, paramTypes.len);
+
             for (fnCall.args.items, 0..) |argExpr, i| {
                 const argType = try self.checkExpr(arenaAllocator, argExpr, scope, contextStack);
                 const paramType = paramTypes[i];
@@ -250,4 +252,17 @@ fn getType(arenaAllocator: std.mem.Allocator, type_: Node.Type, scope: *Symbols.
         .built_in => Type{ .built_in = type_.built_in },
         .id => try scope.getTypeAlias(arenaAllocator, type_.id.name),
     };
+}
+
+fn isVoid(type_: Type) bool {
+    return switch (type_) {
+        .built_in => type_.built_in == BuiltinType.Void,
+        else => false,
+    };
+}
+
+fn checkArity(left: usize, right: usize) !void {
+    if (left != right) {
+        return SemanticError.InvalidArity;
+    }
 }

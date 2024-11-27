@@ -50,10 +50,13 @@ test "Check function declaration" {
     const scope = try analyzeProgram(allocator, "function foo(a: number): void { return; }");
     try std.testing.expect(scope.symbols.get("foo") != null);
 
+    _ = try analyzeProgram(allocator, "let a: number = 1; function b(): number { return a; }");
+
     try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number): void { return; } function foo(): void { return; }"));
     try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number, a: string): void { return; }"));
 
     try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function foo(a: number): void { return 1; }"));
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function b(c: number): boolean { return c + false; }"));
 }
 
 test "Check variable assignment" {
@@ -61,10 +64,24 @@ test "Check variable assignment" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    _ = try analyzeProgram(allocator, "let a: number = 1; a = 2; function b(): number { return 1; } a = b();");
+    _ = try analyzeProgram(allocator, "let a: number = 1;");
 
     try std.testing.expectError(Checker.SemanticError.UndeclaredIdentifier, analyzeProgram(allocator, "a = 2;"));
 
     try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; a = true;"));
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; function b(): boolean { return true; } a = b();"));
+}
+
+test "Check function call" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    _ = try analyzeProgram(allocator, "function b(c: boolean): boolean { return c + false; } let a: boolean = b(true);");
+
+    try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(): boolean { return true; } b(1);"));
+    try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b();"));
+    try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b(1, 2);"));
+
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function b(): boolean { return true; } let a: number = b();"));
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: boolean = true; function b(c: number): boolean { return c + false; } a = b(1);"));
 }
