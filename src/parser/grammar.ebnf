@@ -10,7 +10,7 @@ statement = variable_declaration
           | continue_statement
           | expression_statement ;
 
-variable_declaration = "let" identifier ":" type [ "=" expression ] ";" ;
+variable_declaration = "let" identifier ":" type "=" expression ";" ;
 
 function_declaration = "function" identifier "(" [ parameter_list ] ")" ":" type block ;
 

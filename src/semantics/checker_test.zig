@@ -37,12 +37,18 @@ test "Check variable declaration" {
     try std.testing.expect(result.scope.symbols.get("a") != null);
 
     _ = try analyzeProgram(allocator, "let a: number = 1;let b: number = a;");
+    _ = try analyzeProgram(allocator, "let a: null = null;let b: undefined = undefined;");
+    _ = try analyzeProgram(allocator, "{let a: null = null;}{let a: boolean = true;}");
+
     try std.testing.expectError(Err.UndeclaredIdentifierType, analyzeProgram(allocator, "let a: number = 1;let b: a = a;"));
 
+    try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "let a: null = null;{ let a: null = null; }"));
     try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "let a: number = 1; let a: boolean = true;"));
     try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "let a: number = 1; function a(): number { return 1; }"));
 
     try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: number = true;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: null = true;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: undefined = true;"));
     try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: number = 1;let b: boolean = a;"));
 }
 

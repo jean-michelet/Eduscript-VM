@@ -47,6 +47,7 @@ pub fn init(arenaAllocator: std.mem.Allocator) @This() {
     return @This(){ .contextStack = Context.Stack.init(arenaAllocator) };
 }
 
+// TODO: Add error message generation to the semantic analyzer
 pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!CheckResult {
     return switch (stmt) {
         .fn_decl => |fnDecl| {
