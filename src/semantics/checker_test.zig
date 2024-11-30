@@ -5,6 +5,8 @@ const Symbols = @import("symbols.zig");
 const Checker = @import("checker.zig");
 const Context = @import("context.zig");
 
+const Err = Checker.SemanticError;
+const Flow = Checker.Flow;
 const Result = struct { scope: Symbols.Scope, checked: Checker.CheckResult };
 
 fn parseProgram(allocator: std.mem.Allocator, source: []const u8) !Node.Block {
@@ -35,13 +37,17 @@ test "Check variable declaration" {
     try std.testing.expect(result.scope.symbols.get("a") != null);
 
     _ = try analyzeProgram(allocator, "let a: number = 1;let b: number = a;");
-    try std.testing.expectError(Checker.SemanticError.UndeclaredIdentifierType, analyzeProgram(allocator, "let a: number = 1;let b: a = a;"));
+    try std.testing.expectError(Err.UndeclaredIdentifierType, analyzeProgram(allocator, "let a: number = 1;let b: a = a;"));
 
-    try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "let a: number = 1; let a: boolean = true;"));
-    try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "let a: number = 1; function a(): number { return 1; }"));
+    try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "let a: number = 1; let a: boolean = true;"));
+    try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "let a: number = 1; function a(): number { return 1; }"));
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = true;"));
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = 1;let b: boolean = a;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: number = true;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: number = 1;let b: boolean = a;"));
+}
+
+test "Check type declaration" {
+    // TODO
 }
 
 test "Check function declaration" {
@@ -55,18 +61,18 @@ test "Check function declaration" {
     _ = try analyzeProgram(allocator, "let a: number = 1; function b(): number { return a; }");
 
     const returnIfMismatch = analyzeProgram(allocator, "function b(): number { if (true) { return \"hello\"; } return 2; }");
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, returnIfMismatch);
+    try std.testing.expectError(Err.TypeMismatch, returnIfMismatch);
 
     const returnIfElseIfMismatch = analyzeProgram(allocator, "function b(): number { if (true) { return true; } else { return 1; } }");
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, returnIfElseIfMismatch);
+    try std.testing.expectError(Err.TypeMismatch, returnIfElseIfMismatch);
 
     const returnIfElseElseMismatch = analyzeProgram(allocator, "function b(): number { if (true) { return 1; } else { return true; } }");
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, returnIfElseElseMismatch);
+    try std.testing.expectError(Err.TypeMismatch, returnIfElseElseMismatch);
 
-    try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number): void { return; } function foo(): void { return; }"));
-    try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number, a: string): void { return; }"));
+    try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number): void { return; } function foo(): void { return; }"));
+    try std.testing.expectError(Err.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number, a: string): void { return; }"));
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function foo(a: number): void { return 1; }"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "function foo(a: number): void { return 1; }"));
 }
 
 test "Return control flow" {
@@ -76,10 +82,10 @@ test "Return control flow" {
 
     _ = try analyzeProgram(allocator, "function test(): void { return; }");
 
-    try std.testing.expectError(Checker.SemanticError.ReturnOutsideFunction, analyzeProgram(allocator, "return;"));
+    try std.testing.expectError(Err.ReturnOutsideFunction, analyzeProgram(allocator, "return;"));
 
     const unreachableAfterReturn = "function test(): void { return; ; // unreachable \n }";
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterReturn));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableAfterReturn));
 }
 
 test "Check if stmt" {
@@ -87,13 +93,13 @@ test "Check if stmt" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "if(1) { ; }"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "if(1) { ; }"));
 
     var result = try analyzeProgram(allocator, "if(true) { ; }");
-    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
+    try std.testing.expectEqual(Flow.Reachable, result.checked.flow);
 
     result = try analyzeProgram(allocator, "if(true) { ; } else { ; }");
-    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
+    try std.testing.expectEqual(Flow.Reachable, result.checked.flow);
 
     const unreachableCode =
         \\ function test(): void { 
@@ -101,7 +107,7 @@ test "Check if stmt" {
         \\  return; // unreachable 
         \\ }
     ;
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableCode));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableCode));
 
     const reachableBecauseOfIfCode =
         \\ function test(): void { 
@@ -110,7 +116,7 @@ test "Check if stmt" {
         \\ }
     ;
     result = try analyzeProgram(allocator, reachableBecauseOfIfCode);
-    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
+    try std.testing.expectEqual(Flow.Reachable, result.checked.flow);
 
     const reachableBecauseOfElseCode =
         \\ function test(): void { 
@@ -119,7 +125,7 @@ test "Check if stmt" {
         \\ }
     ;
     result = try analyzeProgram(allocator, reachableBecauseOfElseCode);
-    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
+    try std.testing.expectEqual(Flow.Reachable, result.checked.flow);
 }
 
 test "Check while loop" {
@@ -129,12 +135,12 @@ test "Check while loop" {
 
     _ = try analyzeProgram(allocator, "while(true) { break; }");
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "while(1) { break; }"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "while(1) { break; }"));
 
-    try std.testing.expectError(Checker.SemanticError.BreakOutsideLoop, analyzeProgram(allocator, "break;"));
+    try std.testing.expectError(Err.BreakOutsideLoop, analyzeProgram(allocator, "break;"));
 
     const unreachableAfterBreak = "while(true) { break; ; // unreachable \n }";
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreak));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableAfterBreak));
 
     const unreachableAfterBreakingIfCode =
         \\ while(true) { 
@@ -142,14 +148,14 @@ test "Check while loop" {
         \\ ; // unreachable 
         \\ }
     ;
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreakingIfCode));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableAfterBreakingIfCode));
 
     _ = try analyzeProgram(allocator, "while(true) { continue; }");
 
-    try std.testing.expectError(Checker.SemanticError.ContinueOutsideLoop, analyzeProgram(allocator, "continue;"));
+    try std.testing.expectError(Err.ContinueOutsideLoop, analyzeProgram(allocator, "continue;"));
 
     const unreachableAfterContinue = "while(true) { continue; ; // unreachable \n }";
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterContinue));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableAfterContinue));
 
     const unreachableAfterContinueIfCode =
         \\ while(true) { 
@@ -157,7 +163,7 @@ test "Check while loop" {
         \\ ; // unreachable 
         \\ }
     ;
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterContinueIfCode));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableAfterContinueIfCode));
 
     const unreachableAfterReturnCode =
         \\ function test(): void { 
@@ -166,7 +172,7 @@ test "Check while loop" {
         \\ }
     ;
 
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterReturnCode));
+    try std.testing.expectError(Err.Unreachable, analyzeProgram(allocator, unreachableAfterReturnCode));
 
     const fnInLoop =
         \\  while (true) {
@@ -186,9 +192,9 @@ test "Check variable assignment" {
 
     _ = try analyzeProgram(allocator, "let a: number = 1;");
 
-    try std.testing.expectError(Checker.SemanticError.UndeclaredIdentifier, analyzeProgram(allocator, "a = 2;"));
+    try std.testing.expectError(Err.UndeclaredIdentifier, analyzeProgram(allocator, "a = 2;"));
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; a = true;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; a = true;"));
 }
 
 test "Check function call" {
@@ -198,11 +204,11 @@ test "Check function call" {
 
     _ = try analyzeProgram(allocator, "function b(c: boolean): boolean { return false; } let a: boolean = b(true);");
 
-    try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(): boolean { return true; } b(1);"));
-    try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b();"));
-    try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b(1, 2);"));
+    try std.testing.expectError(Err.InvalidArity, analyzeProgram(allocator, "function b(): boolean { return true; } b(1);"));
+    try std.testing.expectError(Err.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b();"));
+    try std.testing.expectError(Err.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b(1, 2);"));
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function b(): boolean { return true; } let a: number = b();"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "function b(): boolean { return true; } let a: number = b();"));
 }
 
 test "Check binary expr" {
@@ -213,7 +219,7 @@ test "Check binary expr" {
     _ = try analyzeProgram(allocator, "1 + 2;");
     _ = try analyzeProgram(allocator, "let a: number = 1; let b: number = a + 2; a + b;");
 
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "true + true;"));
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "true + 1;"));
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; let b: boolean = true; a + b;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "true + true;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "true + 1;"));
+    try std.testing.expectError(Err.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; let b: boolean = true; a + b;"));
 }
