@@ -1,5 +1,6 @@
 const std = @import("std");
 const Node = @import("../parser/node.zig");
+const Token = @import("../scanner/token.zig");
 const Context = @import("context.zig");
 const Symbols = @import("symbols.zig");
 
@@ -224,7 +225,8 @@ fn checkExpr(self: *@This(), arenaAllocator: std.mem.Allocator, expr: Node.Expr,
             const left = try self.checkExpr(arenaAllocator, binaryExpr.left(), scope, contextStack);
             const right = try self.checkExpr(arenaAllocator, binaryExpr.right(), scope, contextStack);
 
-            try compareTypes(left, right);
+            try expectNumber(left);
+            try expectNumber(right);
 
             return left;
         },
@@ -240,6 +242,10 @@ fn checkExpr(self: *@This(), arenaAllocator: std.mem.Allocator, expr: Node.Expr,
             return Type{ .built_in = type_ };
         },
     };
+}
+
+fn expectNumber(current: Type) !void {
+    try compareTypes(current, .{ .built_in = BuiltinType.Number });
 }
 
 fn expectBoolean(current: Type) !void {

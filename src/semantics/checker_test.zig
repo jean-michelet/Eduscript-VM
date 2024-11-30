@@ -67,7 +67,6 @@ test "Check function declaration" {
     try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number, a: string): void { return; }"));
 
     try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function foo(a: number): void { return 1; }"));
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function b(c: number): boolean { return c + false; }"));
 }
 
 test "Return control flow" {
@@ -197,12 +196,24 @@ test "Check function call" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    _ = try analyzeProgram(allocator, "function b(c: boolean): boolean { return c + false; } let a: boolean = b(true);");
+    _ = try analyzeProgram(allocator, "function b(c: boolean): boolean { return false; } let a: boolean = b(true);");
 
     try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(): boolean { return true; } b(1);"));
     try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b();"));
     try std.testing.expectError(Checker.SemanticError.InvalidArity, analyzeProgram(allocator, "function b(a: number): boolean { return true; } b(1, 2);"));
 
     try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function b(): boolean { return true; } let a: number = b();"));
-    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: boolean = true; function b(c: number): boolean { return c + false; } a = b(1);"));
+}
+
+test "Check binary expr" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    _ = try analyzeProgram(allocator, "1 + 2;");
+    _ = try analyzeProgram(allocator, "let a: number = 1; let b: number = a + 2; a + b;");
+
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "true + true;"));
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "true + 1;"));
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "let a: number = 1; let b: boolean = true; a + b;"));
 }
