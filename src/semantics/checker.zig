@@ -12,6 +12,7 @@ pub const SemanticError = error{
     UndeclaredIdentifierType,
     UndeclaredIdentifierValue,
     UndeclaredFunction,
+    Unreachable,
     InvalidArity,
     TypeMismatch,
 } || error{OutOfMemory};
@@ -29,85 +30,104 @@ pub const BuiltinType = enum {
 
 pub const FunctionType = struct { paramTypes: std.ArrayList(Type), returnType: *Type };
 
+pub const Flow = enum {
+    Reachable,
+    Unreachable,
+};
+
+pub const CheckResult = struct {
+    type_: Type,
+    flow: Flow,
+};
+
 contextStack: Context.Stack,
 
 pub fn init(arenaAllocator: std.mem.Allocator) @This() {
     return @This(){ .contextStack = Context.Stack.init(arenaAllocator) };
 }
 
-pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!Type {
+pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!CheckResult {
     return switch (stmt) {
         .fn_decl => |fnDecl| {
-            return try self.checkFnDecl(arenaAllocator, fnDecl, scope, contextStack);
+            const type_ = try self.checkFnDecl(arenaAllocator, fnDecl, scope, contextStack);
+            return CheckResult{ .type_ = type_, .flow = .Reachable };
         },
         .var_decl => |varDecl| {
-            return try self.checkVarDecl(arenaAllocator, varDecl, scope, contextStack);
+            const type_ = try self.checkVarDecl(arenaAllocator, varDecl, scope, contextStack);
+            return CheckResult{ .type_ = type_, .flow = .Reachable };
         },
         .block => |blockStmt| {
             var blockScope = Symbols.Scope.init(arenaAllocator, scope);
             return try self.checkBlock(arenaAllocator, blockStmt, &blockScope, contextStack);
         },
         .if_ => |ifStmt| {
-            var cons: Type = Type{ .built_in = BuiltinType.Void };
+            var cons = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
             if (ifStmt.consequent()) |consStmt| {
                 cons = try self.check(arenaAllocator, consStmt, scope, contextStack);
             }
 
-            var alt: Type = Type{ .built_in = BuiltinType.Void };
+            var alt = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
             if (ifStmt.alternate()) |altStmt| {
                 alt = try self.check(arenaAllocator, altStmt, scope, contextStack);
             }
 
-            // TODO: check branches
-
-            return alt;
+            return CheckResult{
+                .type_ = alt.type_,
+                .flow = if (cons.flow == .Reachable or alt.flow == .Reachable) .Reachable else .Unreachable,
+            };
         },
         .while_ => |whileStmt| {
             try contextStack.push(.Loop);
-            const whileType = try self.check(arenaAllocator, whileStmt.body.*, scope, contextStack);
+            const bodyCheck = try self.check(arenaAllocator, whileStmt.body.*, scope, contextStack);
             contextStack.pop();
 
-            return whileType;
+            return bodyCheck;
         },
         .return_ => |returnStmt| {
-            if (!contextStack.isInContext(.Function)) {
+            const ctx = contextStack.currentFunctionContext();
+            if (ctx == null) {
                 return SemanticError.ReturnOutsideFunction;
             }
 
-            if (returnStmt.expr == null) {
-                return Type{ .built_in = BuiltinType.Void };
-            }
+            const returnType = if (returnStmt.expr != null) try self.checkExpr(arenaAllocator, returnStmt.expr.?, scope, contextStack) else Type{ .built_in = BuiltinType.Void };
+            try compareTypes(ctx.?.returnType, returnType);
 
-            return try self.checkExpr(arenaAllocator, returnStmt.expr.?, scope, contextStack);
+            return CheckResult{ .type_ = returnType, .flow = .Unreachable };
         },
         .break_ => |_| {
-            if (!contextStack.isInContext(.Loop)) {
+            if (!contextStack.isInContext("Loop")) {
                 return SemanticError.BreakOutsideLoop;
             }
 
-            return Type{ .built_in = BuiltinType.Void };
+            return CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Unreachable };
         },
         .continue_ => |_| {
-            if (!contextStack.isInContext(.Loop)) {
+            if (!contextStack.isInContext("Loop")) {
                 return SemanticError.ContinueOutsideLoop;
             }
 
-            return Type{ .built_in = BuiltinType.Void };
+            return CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Unreachable };
         },
         .expr => |exprStmt| {
-            return try self.checkExpr(arenaAllocator, exprStmt, scope, contextStack);
+            const type_ = try self.checkExpr(arenaAllocator, exprStmt, scope, contextStack);
+            return CheckResult{ .type_ = type_, .flow = .Reachable };
         },
-        .empty => Type{ .built_in = BuiltinType.Void },
+        .empty => CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable },
     };
 }
 
-pub fn checkBlock(self: *@This(), arenaAllocator: std.mem.Allocator, block: Node.Block, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!Type {
-    var type_: Type = Type{ .built_in = BuiltinType.Void };
+pub fn checkBlock(self: *@This(), arenaAllocator: std.mem.Allocator, block: Node.Block, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!CheckResult {
+    var lastResult = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
+
     for (block.stmts.items) |stmt| {
-        type_ = try self.check(arenaAllocator, stmt, scope, contextStack);
+        if (lastResult.flow == .Unreachable) {
+            return SemanticError.Unreachable;
+        }
+
+        lastResult = try self.check(arenaAllocator, stmt, scope, contextStack);
     }
 
-    return type_;
+    return lastResult;
 }
 
 fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.FnDecl, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!Type {
@@ -128,7 +148,9 @@ fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.F
     try scope.symbols.put(name, symbol);
 
     var functionScope = Symbols.Scope.init(arenaAllocator, scope);
-    try contextStack.push(.Function);
+
+    const ctx = Context.Item{ .Function = Context.Item.FunctionContext{ .returnType = fnType.function.returnType.* } };
+    try contextStack.push(ctx);
 
     for (fnDecl.params.items) |param| {
         const paramName = param.id.name;
@@ -140,9 +162,9 @@ fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.F
         try functionScope.symbols.put(paramName, paramSymbol);
     }
 
-    const blockType = try self.checkBlock(arenaAllocator, fnDecl.body, &functionScope, contextStack);
+    const blockResult = try self.checkBlock(arenaAllocator, fnDecl.body, &functionScope, contextStack);
 
-    try compareTypes(blockType, fnType.function.returnType.*);
+    try compareTypes(blockResult.type_, fnType.function.returnType.*);
 
     contextStack.pop();
 

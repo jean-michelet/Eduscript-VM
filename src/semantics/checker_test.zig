@@ -5,6 +5,8 @@ const Symbols = @import("symbols.zig");
 const Checker = @import("checker.zig");
 const Context = @import("context.zig");
 
+const Result = struct { scope: Symbols.Scope, checked: Checker.CheckResult };
+
 fn parseProgram(allocator: std.mem.Allocator, source: []const u8) !Node.Block {
     var parser = Parser.init(allocator);
     return parser.parse(allocator, source) catch |err| {
@@ -13,15 +15,15 @@ fn parseProgram(allocator: std.mem.Allocator, source: []const u8) !Node.Block {
     };
 }
 
-fn analyzeProgram(allocator: std.mem.Allocator, source: []const u8) !Symbols.Scope {
+fn analyzeProgram(allocator: std.mem.Allocator, source: []const u8) !Result {
     const program = try parseProgram(allocator, source);
 
     var checker = Checker.init(allocator);
     var globalScope = Symbols.Scope.init(allocator, null);
     var stack = Context.Stack.init(allocator);
-    _ = try checker.checkBlock(allocator, program, &globalScope, &stack);
+    const result = try checker.checkBlock(allocator, program, &globalScope, &stack);
 
-    return globalScope;
+    return Result{ .scope = globalScope, .checked = result };
 }
 
 test "Check variable declaration" {
@@ -29,8 +31,8 @@ test "Check variable declaration" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const scop = try analyzeProgram(allocator, "let a: number = 1;");
-    try std.testing.expect(scop.symbols.get("a") != null);
+    const result = try analyzeProgram(allocator, "let a: number = 1;");
+    try std.testing.expect(result.scope.symbols.get("a") != null);
 
     _ = try analyzeProgram(allocator, "let a: number = 1;let b: number = a;");
     try std.testing.expectError(Checker.SemanticError.UndeclaredIdentifierType, analyzeProgram(allocator, "let a: number = 1;let b: a = a;"));
@@ -47,16 +49,113 @@ test "Check function declaration" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const scope = try analyzeProgram(allocator, "function foo(a: number): void { return; }");
-    try std.testing.expect(scope.symbols.get("foo") != null);
+    const result = try analyzeProgram(allocator, "function foo(a: number): void { return; }");
+    try std.testing.expect(result.scope.symbols.get("foo") != null);
 
     _ = try analyzeProgram(allocator, "let a: number = 1; function b(): number { return a; }");
+
+    const returnIfMismatch = analyzeProgram(allocator, "function b(): number { if (true) { return \"hello\"; } return 2; }");
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, returnIfMismatch);
+
+    const returnIfElseIfMismatch = analyzeProgram(allocator, "function b(): number { if (true) { return true; } else { return 1; } }");
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, returnIfElseIfMismatch);
+
+    const returnIfElseElseMismatch = analyzeProgram(allocator, "function b(): number { if (true) { return 1; } else { return true; } }");
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, returnIfElseElseMismatch);
 
     try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number): void { return; } function foo(): void { return; }"));
     try std.testing.expectError(Checker.SemanticError.DuplicateDeclaration, analyzeProgram(allocator, "function foo(a: number, a: string): void { return; }"));
 
     try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function foo(a: number): void { return 1; }"));
     try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "function b(c: number): boolean { return c + false; }"));
+}
+
+test "Return control flow" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    _ = try analyzeProgram(allocator, "function test(): void { return; }");
+
+    try std.testing.expectError(Checker.SemanticError.ReturnOutsideFunction, analyzeProgram(allocator, "return;"));
+
+    const unreachableAfterReturn = "function test(): void { return; ; // unreachable \n }";
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterReturn));
+
+    const unreachableCode =
+        \\ function test(): void { 
+        \\  if (true) { return; } else { return; } 
+        \\  return; // unreachable 
+        \\ }
+    ;
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableCode));
+
+    const reachableBecauseOfIfCode =
+        \\ function test(): void { 
+        \\  if (true) { } else { return; } 
+        \\  return; // reachable 
+        \\ }
+    ;
+    _ = try analyzeProgram(allocator, reachableBecauseOfIfCode);
+
+    const reachableBecauseOfElseCode =
+        \\ function test(): void { 
+        \\  if (true) { return; } else { } 
+        \\  return; // reachable 
+        \\ }
+    ;
+    _ = try analyzeProgram(allocator, reachableBecauseOfElseCode);
+
+    const unreachableBecauseWhileCode =
+        \\ function test(): void { 
+        \\  while (true) return;
+        \\  return; // unreachable 
+        \\ }
+    ;
+
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableBecauseWhileCode));
+}
+
+test "Break control flow" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    _ = try analyzeProgram(allocator, "while(true) { break; }");
+
+    try std.testing.expectError(Checker.SemanticError.BreakOutsideLoop, analyzeProgram(allocator, "break;"));
+
+    const unreachableAfterBreak = "while(true) { break; ; // unreachable \n }";
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreak));
+
+    const unreachableAfterBreakingIfCode =
+        \\ while(true) { 
+        \\ if (true) { break; } else { break; } 
+        \\ ; // unreachable 
+        \\ }
+    ;
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreakingIfCode));
+}
+
+test "Continue control flow" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    _ = try analyzeProgram(allocator, "while(true) { continue; }");
+
+    try std.testing.expectError(Checker.SemanticError.ContinueOutsideLoop, analyzeProgram(allocator, "continue;"));
+
+    const unreachableAfterContinue = "while(true) { continue; ; // unreachable \n }";
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterContinue));
+
+    const unreachableAfterBreakingIfCode =
+        \\ while(true) { 
+        \\ if (true) { continue; } else { continue; } 
+        \\ ; // unreachable 
+        \\ }
+    ;
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreakingIfCode));
 }
 
 test "Check variable assignment" {

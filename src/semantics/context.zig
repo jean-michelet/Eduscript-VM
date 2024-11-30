@@ -1,8 +1,13 @@
 const std = @import("std");
+const Checker = @import("checker.zig");
 
-pub const Item = enum {
-    Loop,
-    Function,
+pub const Item = union(enum) {
+    Loop: void, // Represents a loop context
+    Function: FunctionContext, // Represents a function context with metadata
+
+    pub const FunctionContext = struct {
+        returnType: Checker.Type, // Expected return type for the function
+    };
 };
 
 pub const Stack = struct {
@@ -22,11 +27,19 @@ pub const Stack = struct {
         _ = self.contexts.pop();
     }
 
-    pub fn isInContext(self: *Stack, context: Item) bool {
+    pub fn isInContext(self: *Stack, tag: [:0]const u8) bool {
         for (self.contexts.items) |ctx| {
-            if (ctx == context) return true;
+            if (std.mem.eql(u8, @tagName(ctx), tag)) return true;
+        }
+        return false;
+    }
+
+    pub fn currentFunctionContext(self: *Stack) ?Item.FunctionContext {
+        const expectedTag = "Function";
+        for (self.contexts.items) |ctx| {
+            if (std.mem.eql(u8, @tagName(ctx), expectedTag)) return ctx.Function;
         }
 
-        return false;
+        return null;
     }
 };
