@@ -61,6 +61,9 @@ pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt,
             return try self.checkBlock(arenaAllocator, blockStmt, &blockScope, contextStack);
         },
         .if_ => |ifStmt| {
+            const testType = try self.checkExpr(arenaAllocator, ifStmt.test_, scope, contextStack);
+            try expectBoolean(testType);
+
             var cons = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
             if (ifStmt.consequent()) |consStmt| {
                 cons = try self.check(arenaAllocator, consStmt, scope, contextStack);
@@ -77,6 +80,9 @@ pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt,
             };
         },
         .while_ => |whileStmt| {
+            const testType = try self.checkExpr(arenaAllocator, whileStmt.test_, scope, contextStack);
+            try expectBoolean(testType);
+
             try contextStack.push(.Loop);
             const bodyCheck = try self.check(arenaAllocator, whileStmt.body.*, scope, contextStack);
             contextStack.pop();
@@ -234,6 +240,10 @@ fn checkExpr(self: *@This(), arenaAllocator: std.mem.Allocator, expr: Node.Expr,
             return Type{ .built_in = type_ };
         },
     };
+}
+
+fn expectBoolean(current: Type) !void {
+    try compareTypes(current, .{ .built_in = BuiltinType.Boolean });
 }
 
 fn compareTypes(left: Type, right: Type) !void {

@@ -81,6 +81,20 @@ test "Return control flow" {
 
     const unreachableAfterReturn = "function test(): void { return; ; // unreachable \n }";
     try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterReturn));
+}
+
+test "Check if stmt" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "if(1) { ; }"));
+
+    var result = try analyzeProgram(allocator, "if(true) { ; }");
+    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
+
+    result = try analyzeProgram(allocator, "if(true) { ; } else { ; }");
+    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
 
     const unreachableCode =
         \\ function test(): void { 
@@ -96,7 +110,8 @@ test "Return control flow" {
         \\  return; // reachable 
         \\ }
     ;
-    _ = try analyzeProgram(allocator, reachableBecauseOfIfCode);
+    result = try analyzeProgram(allocator, reachableBecauseOfIfCode);
+    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
 
     const reachableBecauseOfElseCode =
         \\ function test(): void { 
@@ -104,24 +119,18 @@ test "Return control flow" {
         \\  return; // reachable 
         \\ }
     ;
-    _ = try analyzeProgram(allocator, reachableBecauseOfElseCode);
-
-    const unreachableBecauseWhileCode =
-        \\ function test(): void { 
-        \\  while (true) return;
-        \\  return; // unreachable 
-        \\ }
-    ;
-
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableBecauseWhileCode));
+    result = try analyzeProgram(allocator, reachableBecauseOfElseCode);
+    try std.testing.expectEqual(Checker.Flow.Reachable, result.checked.flow);
 }
 
-test "Break control flow" {
+test "Check while loop" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     _ = try analyzeProgram(allocator, "while(true) { break; }");
+
+    try std.testing.expectError(Checker.SemanticError.TypeMismatch, analyzeProgram(allocator, "while(1) { break; }"));
 
     try std.testing.expectError(Checker.SemanticError.BreakOutsideLoop, analyzeProgram(allocator, "break;"));
 
@@ -135,12 +144,6 @@ test "Break control flow" {
         \\ }
     ;
     try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreakingIfCode));
-}
-
-test "Continue control flow" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
 
     _ = try analyzeProgram(allocator, "while(true) { continue; }");
 
@@ -149,13 +152,32 @@ test "Continue control flow" {
     const unreachableAfterContinue = "while(true) { continue; ; // unreachable \n }";
     try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterContinue));
 
-    const unreachableAfterBreakingIfCode =
+    const unreachableAfterContinueIfCode =
         \\ while(true) { 
         \\ if (true) { continue; } else { continue; } 
         \\ ; // unreachable 
         \\ }
     ;
-    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterBreakingIfCode));
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterContinueIfCode));
+
+    const unreachableAfterReturnCode =
+        \\ function test(): void { 
+        \\  while (true) return;
+        \\  return; // unreachable 
+        \\ }
+    ;
+
+    try std.testing.expectError(Checker.SemanticError.Unreachable, analyzeProgram(allocator, unreachableAfterReturnCode));
+
+    const fnInLoop =
+        \\  while (true) {
+        \\    function test(): void { 
+        \\        return;
+        \\    }
+        \\  }
+    ;
+
+    _ = try analyzeProgram(allocator, fnInLoop);
 }
 
 test "Check variable assignment" {
