@@ -9,31 +9,27 @@ const Value = Emitter.Value;
 ip: usize,
 sp: usize,
 stack: std.ArrayList(Value),
-bytecode: std.ArrayList(u8),
-constants: std.ArrayList(Value),
+co: ?Emitter.Code = null,
 
 pub fn init(arenaAllocator: std.mem.Allocator) !@This() {
     return @This(){
         .ip = 0,
         .sp = 0,
         .stack = std.ArrayList(Value).init(arenaAllocator),
-        .bytecode = std.ArrayList(u8).init(arenaAllocator),
-        .constants = std.ArrayList(Value).init(arenaAllocator),
     };
 }
 
-pub fn exec(self: *@This(), emitResult: Emitter.EmitResult) !Value {
-    self.bytecode = emitResult.bytecode;
-    self.constants = emitResult.constants;
+pub fn exec(self: *@This(), emitResult: Emitter.Code) !Value {
+    self.co = emitResult;
 
-    while (self.ip < self.bytecode.items.len) {
+    while (!self.isEndOfCode()) {
         const opcode: u8 = self.nextByte();
 
         switch (opcode) {
             Emitter.op_const => {
                 const idx: u8 = self.nextByte();
 
-                const value = self.constants.items[idx];
+                const value = self.getConst(idx);
                 try self.stack.append(value);
             },
             Emitter.op_add, Emitter.op_sub, Emitter.op_div, Emitter.op_mul => {
@@ -60,7 +56,15 @@ pub fn exec(self: *@This(), emitResult: Emitter.EmitResult) !Value {
 }
 
 fn nextByte(self: *@This()) u8 {
-    const opcode: u8 = self.bytecode.items[self.ip];
+    const opcode: u8 = self.co.?.bytecode.items[self.ip];
     self.ip += 1;
     return opcode;
+}
+
+fn getConst(self: *@This(), idx: u8) Value {
+    return self.co.?.constants.items[idx];
+}
+
+fn isEndOfCode(self: *@This()) bool {
+    return self.ip >= self.co.?.bytecode.items.len;
 }

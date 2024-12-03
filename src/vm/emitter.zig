@@ -4,7 +4,7 @@ const Token = @import("../scanner/token.zig");
 
 const Errors = error{ InvalidOperation, EndOfBytecode };
 
-pub const EmitResult = struct {
+pub const Code = struct {
     bytecode: std.ArrayList(u8),
     constants: std.ArrayList(Value),
 };
@@ -16,10 +16,12 @@ pub const op_mul: u8 = 0x03;
 pub const op_div: u8 = 0x04;
 pub const op_const: u8 = 0x05;
 
-pub const Value = union(enum) { number: f64, boolean: bool, nullVal: void, undefinedVal: void, object: *Object };
-
-pub const Object = union(enum) {
+pub const Value = union(enum) {
+    number: f64,
     string: []const u8,
+    boolean: bool,
+    nullVal: void,
+    undefinedVal: void,
 };
 
 bytecode: std.ArrayList(u8),
@@ -30,7 +32,7 @@ pub fn init(arenaAllocator: std.mem.Allocator) @This() {
     return @This(){ .bytecode = std.ArrayList(u8).init(arenaAllocator), .constants = std.ArrayList(Value).init(arenaAllocator) };
 }
 
-pub fn emit(self: *@This(), program: Node.Block) !EmitResult {
+pub fn emit(self: *@This(), program: Node.Block) !Code {
     self.bytecode.clearAndFree();
     self.constants.clearAndFree();
 
@@ -41,7 +43,7 @@ pub fn emit(self: *@This(), program: Node.Block) !EmitResult {
         }
     }
 
-    return EmitResult{ .bytecode = self.bytecode, .constants = self.constants };
+    return Code{ .bytecode = self.bytecode, .constants = self.constants };
 }
 
 pub fn read(self: *@This()) !u8 {

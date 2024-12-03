@@ -12,7 +12,7 @@ fn parseProgram(allocator: std.mem.Allocator, source: []const u8) !Node.Block {
     };
 }
 
-fn emitBytecode(allocator: std.mem.Allocator, source: []const u8) !Emitter.EmitResult {
+fn emitBytecode(allocator: std.mem.Allocator, source: []const u8) !Emitter.Code {
     const ast = try parseProgram(allocator, source);
     var emitter = Emitter.init(allocator);
 
