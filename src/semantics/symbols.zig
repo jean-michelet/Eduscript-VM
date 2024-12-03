@@ -40,13 +40,13 @@ pub const Scope = struct {
             currentScope = s.parent;
         }
 
-        return Checker.SemanticError.UndeclaredIdentifier;
+        return Checker.Error.UndeclaredIdentifier;
     }
 
     pub fn getValueType(self: *Scope, name: []const u8) !Checker.Type {
         const symbol = try self.get(name);
         if (symbol.valueType == null) {
-            return Checker.SemanticError.UndeclaredIdentifierValue;
+            return Checker.Error.UndeclaredIdentifierValue;
         }
 
         return symbol.valueType.?;
@@ -59,7 +59,7 @@ pub const Scope = struct {
             if (decSymbol.kind == SymbolKind.Type) return Checker.Type{ .id = try arenaAllocator.dupe(u8, name) };
         }
 
-        return Checker.SemanticError.UndeclaredIdentifierType;
+        return Checker.Error.UndeclaredIdentifierType;
     }
 
     pub fn exists(self: *Scope, name: []const u8) bool {

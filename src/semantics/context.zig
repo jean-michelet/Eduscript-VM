@@ -2,11 +2,11 @@ const std = @import("std");
 const Checker = @import("checker.zig");
 
 pub const Item = union(enum) {
-    Loop: void, // Represents a loop context
-    Function: FunctionContext, // Represents a function context with metadata
+    Loop: void,
+    Function: FunctionContext,
 
     pub const FunctionContext = struct {
-        returnType: Checker.Type, // Expected return type for the function
+        returnType: Checker.Type,
     };
 };
 

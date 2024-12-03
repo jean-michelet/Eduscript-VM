@@ -5,7 +5,7 @@ const Symbols = @import("symbols.zig");
 const Checker = @import("checker.zig");
 const Context = @import("context.zig");
 
-const Err = Checker.SemanticError;
+const Err = Checker.Error;
 const Flow = Checker.Flow;
 const Result = struct { scope: Symbols.Scope, checked: Checker.CheckResult };
 

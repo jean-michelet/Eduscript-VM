@@ -4,7 +4,7 @@ const Token = @import("../scanner/token.zig");
 const Context = @import("context.zig");
 const Symbols = @import("symbols.zig");
 
-pub const SemanticError = error{
+pub const Error = error{
     DuplicateDeclaration,
     ReturnOutsideFunction,
     BreakOutsideLoop,
@@ -48,7 +48,7 @@ pub fn init(arenaAllocator: std.mem.Allocator) @This() {
 }
 
 // TODO: Add error message generation to the semantic analyzer
-pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!CheckResult {
+pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt, scope: *Symbols.Scope, contextStack: *Context.Stack) Error!CheckResult {
     return switch (stmt) {
         .fn_decl => |fnDecl| {
             const type_ = try self.checkFnDecl(arenaAllocator, fnDecl, scope, contextStack);
@@ -66,12 +66,12 @@ pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt,
             const testType = try self.checkExpr(arenaAllocator, ifStmt.test_, scope, contextStack);
             try expectBoolean(testType);
 
-            var cons = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
+            var cons = CheckResult{ .type_ = Type{ .built_in = .Void }, .flow = .Reachable };
             if (ifStmt.consequent()) |consStmt| {
                 cons = try self.check(arenaAllocator, consStmt, scope, contextStack);
             }
 
-            var alt = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
+            var alt = CheckResult{ .type_ = Type{ .built_in = .Void }, .flow = .Reachable };
             if (ifStmt.alternate()) |altStmt| {
                 alt = try self.check(arenaAllocator, altStmt, scope, contextStack);
             }
@@ -94,42 +94,42 @@ pub fn check(self: *@This(), arenaAllocator: std.mem.Allocator, stmt: Node.Stmt,
         .return_ => |returnStmt| {
             const ctx = contextStack.currentFunctionContext();
             if (ctx == null) {
-                return SemanticError.ReturnOutsideFunction;
+                return Error.ReturnOutsideFunction;
             }
 
-            const returnType = if (returnStmt.expr != null) try self.checkExpr(arenaAllocator, returnStmt.expr.?, scope, contextStack) else Type{ .built_in = BuiltinType.Void };
+            const returnType = if (returnStmt.expr != null) try self.checkExpr(arenaAllocator, returnStmt.expr.?, scope, contextStack) else Type{ .built_in = .Void };
             try compareTypes(ctx.?.returnType, returnType);
 
             return CheckResult{ .type_ = returnType, .flow = .Unreachable };
         },
         .break_ => |_| {
             if (!contextStack.isInContext("Loop")) {
-                return SemanticError.BreakOutsideLoop;
+                return Error.BreakOutsideLoop;
             }
 
-            return CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Unreachable };
+            return CheckResult{ .type_ = Type{ .built_in = .Void }, .flow = .Unreachable };
         },
         .continue_ => |_| {
             if (!contextStack.isInContext("Loop")) {
-                return SemanticError.ContinueOutsideLoop;
+                return Error.ContinueOutsideLoop;
             }
 
-            return CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Unreachable };
+            return CheckResult{ .type_ = Type{ .built_in = .Void }, .flow = .Unreachable };
         },
         .expr => |exprStmt| {
             const type_ = try self.checkExpr(arenaAllocator, exprStmt, scope, contextStack);
             return CheckResult{ .type_ = type_, .flow = .Reachable };
         },
-        .empty => CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable },
+        .empty => CheckResult{ .type_ = Type{ .built_in = .Void }, .flow = .Reachable },
     };
 }
 
-pub fn checkBlock(self: *@This(), arenaAllocator: std.mem.Allocator, block: Node.Block, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!CheckResult {
-    var lastResult = CheckResult{ .type_ = Type{ .built_in = BuiltinType.Void }, .flow = .Reachable };
+pub fn checkBlock(self: *@This(), arenaAllocator: std.mem.Allocator, block: Node.Block, scope: *Symbols.Scope, contextStack: *Context.Stack) Error!CheckResult {
+    var lastResult = CheckResult{ .type_ = Type{ .built_in = .Void }, .flow = .Reachable };
 
     for (block.stmts.items) |stmt| {
         if (lastResult.flow == .Unreachable) {
-            return SemanticError.Unreachable;
+            return Error.Unreachable;
         }
 
         lastResult = try self.check(arenaAllocator, stmt, scope, contextStack);
@@ -138,10 +138,10 @@ pub fn checkBlock(self: *@This(), arenaAllocator: std.mem.Allocator, block: Node
     return lastResult;
 }
 
-fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.FnDecl, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!Type {
+fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.FnDecl, scope: *Symbols.Scope, contextStack: *Context.Stack) Error!Type {
     const name = fnDecl.id.name;
     if (scope.exists(name)) {
-        return SemanticError.DuplicateDeclaration;
+        return Error.DuplicateDeclaration;
     }
 
     var paramTypes = std.ArrayList(Type).init(arenaAllocator);
@@ -163,7 +163,7 @@ fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.F
     for (fnDecl.params.items) |param| {
         const paramName = param.id.name;
         if (functionScope.exists(paramName)) {
-            return SemanticError.DuplicateDeclaration;
+            return Error.DuplicateDeclaration;
         }
 
         const paramSymbol = Symbols.Symbol.init(arenaAllocator, paramName, .Variable, try getType(arenaAllocator, param.type_, scope));
@@ -179,10 +179,10 @@ fn checkFnDecl(self: *@This(), arenaAllocator: std.mem.Allocator, fnDecl: Node.F
     return fnType;
 }
 
-fn checkVarDecl(self: *@This(), arenaAllocator: std.mem.Allocator, varDecl: Node.VarDecl, scope: *Symbols.Scope, contextStack: *Context.Stack) SemanticError!Type {
+fn checkVarDecl(self: *@This(), arenaAllocator: std.mem.Allocator, varDecl: Node.VarDecl, scope: *Symbols.Scope, contextStack: *Context.Stack) Error!Type {
     const name = varDecl.id.name;
     if (scope.exists(name)) {
-        return SemanticError.DuplicateDeclaration;
+        return Error.DuplicateDeclaration;
     }
 
     const symbol = Symbols.Symbol.init(arenaAllocator, name, .Variable, try self.checkExpr(arenaAllocator, varDecl.init, scope, contextStack));
@@ -233,11 +233,11 @@ fn checkExpr(self: *@This(), arenaAllocator: std.mem.Allocator, expr: Node.Expr,
         },
         .literal => |lit| {
             const type_: BuiltinType = switch (lit) {
-                .number => BuiltinType.Number,
-                .string => BuiltinType.String,
-                .boolean => BuiltinType.Boolean,
-                .nullVal => BuiltinType.Null,
-                .undefinedVal => BuiltinType.Undefined,
+                .number => .Number,
+                .string => .String,
+                .boolean => .Boolean,
+                .nullVal => .Null,
+                .undefinedVal => .Undefined,
             };
 
             return Type{ .built_in = type_ };
@@ -246,11 +246,11 @@ fn checkExpr(self: *@This(), arenaAllocator: std.mem.Allocator, expr: Node.Expr,
 }
 
 fn expectNumber(current: Type) !void {
-    try compareTypes(current, .{ .built_in = BuiltinType.Number });
+    try compareTypes(current, .{ .built_in = .Number });
 }
 
 fn expectBoolean(current: Type) !void {
-    try compareTypes(current, .{ .built_in = BuiltinType.Boolean });
+    try compareTypes(current, .{ .built_in = .Boolean });
 }
 
 fn compareTypes(left: Type, right: Type) !void {
@@ -259,10 +259,10 @@ fn compareTypes(left: Type, right: Type) !void {
             return switch (right) {
                 .built_in => {
                     if (left.built_in != right.built_in) {
-                        return SemanticError.TypeMismatch;
+                        return Error.TypeMismatch;
                     }
                 },
-                else => SemanticError.TypeMismatch,
+                else => Error.TypeMismatch,
             };
         },
         .function => {},
@@ -270,10 +270,10 @@ fn compareTypes(left: Type, right: Type) !void {
             return switch (right) {
                 .id => {
                     if (!std.mem.eql(u8, left.id, right.id)) {
-                        return SemanticError.TypeMismatch;
+                        return Error.TypeMismatch;
                     }
                 },
-                else => SemanticError.TypeMismatch,
+                else => Error.TypeMismatch,
             };
         },
     }
@@ -295,13 +295,13 @@ fn getType(arenaAllocator: std.mem.Allocator, type_: Node.Type, scope: *Symbols.
 
 fn isVoid(type_: Type) bool {
     return switch (type_) {
-        .built_in => type_.built_in == BuiltinType.Void,
+        .built_in => type_.built_in == .Void,
         else => false,
     };
 }
 
 fn checkArity(left: usize, right: usize) !void {
     if (left != right) {
-        return SemanticError.InvalidArity;
+        return Error.InvalidArity;
     }
 }
